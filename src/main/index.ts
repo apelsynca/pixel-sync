@@ -131,7 +131,7 @@ if (process.argv.includes('--mcp-stdio')) {
     handle('editor:drawing-prompt-copy', () => { clipboard.writeText('Use pixel-sync: call get_document first, then create a tiny two-frame sprite animation on a new layer without replacing the current document or changing existing artwork. Use unique names for the new layer and a looping animation clip. Use the current revision for each atomic batch, request get_animation_preview for the two frames, and explain how I can play the clip and undo your edits in PixelSync.'); });
     handle('editor:operations', () => structuredClone(recentOperations));
     handle('editor:client-docs', async input => { const client = parse(clientSchema, input); await shell.openExternal(client === 'codex' ? 'https://developers.openai.com/codex/quickstart/' : 'https://code.claude.com/docs/en/setup'); });
-    window = new BrowserWindow({ width: 1360, height: 920, minWidth: 1000, minHeight: 720, backgroundColor: '#11151b', webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
+    window = new BrowserWindow({ width: 1360, height: 920, minWidth: 1000, minHeight: 720, backgroundColor: '#11151b', icon: join(app.getAppPath(), 'assets/icons', process.platform === 'win32' ? 'pixelsync-256.png' : 'pixelsync-512.png'), webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
     const updateMenu = installEditorMenu(window);
     handle('editor:menu-state', input => updateMenu(parse(z.strictObject({ enabled: z.boolean(), canUndo: z.boolean(), canRedo: z.boolean() }), input)));
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

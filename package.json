@@ -8,6 +8,7 @@
   "private": true,
   "main": "dist/main.cjs",
   "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
     "build": "node scripts/build.mjs",
     "start": "bun run build && electron .",
     "package": "bun run build && electron-forge package",
