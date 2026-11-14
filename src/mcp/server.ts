@@ -7,7 +7,7 @@ import type { ClientId } from '../shared/api';
 import { createToolServer, type ToolOptions } from './tools';
 
 export interface RunningMcp { port: number; close(): Promise<void> }
-export async function startMcp(options: { port: number; token: string; getStatus: () => EditorStatus; onStatusCall?: (client: ClientId) => void } & Pick<ToolOptions, 'commands' | 'onOperation'>): Promise<RunningMcp> {
+export async function startMcp(options: { port: number; token: string; getStatus: () => EditorStatus; onStatusCall?: (client: ClientId) => void } & Pick<ToolOptions, 'commands' | 'files' | 'onOperation'>): Promise<RunningMcp> {
   const active = new Set<McpServer>();
   const server: Server = createServer(async (request, response) => {
     const deny = (status: number, message: string) => { response.writeHead(status, { 'Content-Type': 'text/plain' }); response.end(message); };
@@ -55,8 +55,9 @@ export async function startMcp(options: { port: number; token: string; getStatus
   });
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('No MCP listening address');
-  return { port: address.port, async close() {
+  let closing: Promise<void> | undefined;
+  return { port: address.port, close() { return closing ??= (async () => {
     await Promise.all([...active].map(mcp => mcp.close()));
     await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeAllConnections(); });
-  } };
+  })(); } };
 }

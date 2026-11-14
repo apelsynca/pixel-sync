@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { PNG } from 'pngjs';
 import { randomUUID } from 'node:crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolResult, type Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -7,10 +6,13 @@ import { CommandService } from '../application/commands';
 import { animationPreviewSchema, inspectPixelsSchema, PREVIEW_LIMITS, previewSchema, type RenderedPreview } from '../application/inspection';
 import { batchSchema, DocumentError, guardSchema, newDocumentSchema } from '../core/schema';
 import type { ClientId, EditorStatus, McpOperation } from '../shared/api';
+import { FileService, openProjectSchema, saveProjectSchema, exportPngSchema, exportSheetSchema, type FileAction } from '../persistence/files';
+import { encodePng } from '../persistence/images';
 
 export interface ToolOptions {
   getStatus: () => EditorStatus;
   commands?: CommandService;
+  files?: FileService;
   client?: ClientId;
   onStatusCall?: (client: ClientId) => void;
   onOperation?: (operation: McpOperation) => void;
@@ -19,15 +21,13 @@ interface Definition {
   description: string; schema: z.ZodType; readOnly: boolean;
   run: (input: unknown, signal: AbortSignal) => Promise<CallToolResult>;
 }
-export const MCP_INSTRUCTIONS = 'Call get_document first. Use its documentId, current revision, frame IDs and layer IDs. Edit through edit_document with expectedRevision; a batch is atomic and one undo step shared with the user. Reread after stale_revision; never blindly replay an edit. Painting replaces RGBA; layers composite source-over. Frames are explicit, independent of UI selection. Preserve unsaved work; new_document requires its current guard and explicit discardUnsaved when dirty. PNG previews exclude grid/onion skin. File tools are not available yet.';
+export const MCP_INSTRUCTIONS = 'Call get_document first. Use its documentId, current revision, frame IDs and layer IDs. Edit through edit_document with expectedRevision; a batch is atomic and one undo step shared with the user. Reread after stale_revision; never blindly replay an edit. Painting replaces RGBA; layers composite source-over. Frames are explicit, independent of UI selection. Preserve unsaved work; replacement requires its current guard and explicit discardUnsaved when dirty. PNG previews exclude grid/onion skin. File paths are relative to the workspace selected in the app. Existing files require explicit overwrite; sprite sheets need a new directory. Project saving marks the exact revision clean; exports do not.';
 function result(value: Record<string, unknown>): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value };
 }
 function pngResult(preview: RenderedPreview): CallToolResult {
   const { pixels, ...metadata } = preview;
-  const png = new PNG(); png.width = preview.width; png.height = preview.height;
-  png.data = Buffer.from(pixels.buffer, pixels.byteOffset, pixels.byteLength);
-  const bytes = PNG.sync.write(png, { colorType: 6, inputColorType: 6, inputHasAlpha: true });
+  const bytes = encodePng(preview.width, preview.height, pixels);
   return { ...result({ ...metadata, encoding: 'png', mimeType: 'image/png' }), content: [
     { type: 'text', text: JSON.stringify(metadata) }, { type: 'image', mimeType: 'image/png', data: bytes.toString('base64') },
   ] };
@@ -47,11 +47,11 @@ function definitions(options: ToolOptions): Record<string, Definition> {
   };
   const commands = options.commands;
   if (!commands) return tools;
-  return { ...tools,
+  return { ...tools, ...fileDefinitions(options.files),
     get_document: { description: 'Read document ID, revision, dimensions, dirty state, shared layers (bottom to top), ordered frames/durations, named clips, palette, history, limits, and supported capabilities. Read before edits; explicit frame IDs do not follow UI selection.', schema: z.strictObject({}), readOnly: true, run: async (_input, signal) => {
       const document = await commands.getDocument(signal);
       if (!document) throw new DocumentError('missing_document', 'Create a document first');
-      return result({ ...document, capabilities: { drawing: true, animation: true, sharedHistory: true, pngPreviews: true, files: false }, previewLimits: PREVIEW_LIMITS });
+      return result({ ...document, capabilities: { drawing: true, animation: true, sharedHistory: true, pngPreviews: true, files: !!options.files, workspaceConfigured: options.files?.hasWorkspace() ?? false }, previewLimits: PREVIEW_LIMITS });
     } },
     get_pixels: { description: 'Read a fully in-bounds region from an explicit frame and optional layer. Omit layerId for the visible flattened composite. Returns row-major straight RGBA8 as base64, at most 65,536 pixels, with source document/revision. Optional expectedRevision pins a read.', schema: inspectPixelsSchema, readOnly: true, run: async (input, signal) => {
       const { pixels, ...metadata } = await commands.inspectPixels(input, signal);
@@ -64,6 +64,17 @@ function definitions(options: ToolOptions): Record<string, Definition> {
     undo: { description: 'Undo one complete user gesture or MCP batch in shared history. Requires current documentId and expectedRevision; returns resulting metadata and changed bounds. Revision increases even when restoring earlier content.', schema: guardSchema, readOnly: false, run: async (input, signal) => result({ ...await commands.undo(input, signal) }) },
     redo: { description: 'Redo one shared history entry. Requires current documentId and expectedRevision. A new edit clears redo; empty history returns empty_history.', schema: guardSchema, readOnly: false, run: async (input, signal) => result({ ...await commands.redo(input, signal) }) },
   };
+}
+function fileDefinitions(files?: FileService): Record<string, Definition> {
+  if (!files) return {};
+  const contracts = {
+    open_project: { schema: openProjectSchema, description: 'Open a version-1 .pixel.json project from a workspace-relative path. Requires current document guard and discardUnsaved: true if dirty; invalid files leave the existing document unchanged. Preserves layers, frame IDs/timing, clips and exact RGBA. New document identity, clean state, empty history.' },
+    save_project: { schema: saveProjectSchema, description: 'Save the exact guarded document revision as a .pixel.json project at a workspace-relative path. Atomic file replacement; existing file requires overwrite: true. Successful save marks that revision clean. No undo history is stored.' },
+    import_png: { schema: openProjectSchema, description: 'Import a workspace-relative .png as a new unsaved, one-layer/one-frame document. Requires current identity/revision guard and explicit discardUnsaved if dirty. Input at most 16 MiB and 512×512; supported static RGBA/RGB/grayscale/indexed PNGs up to 8-bit channels. Interlaced data is bounded before decoding. APNG and 16-bit channels are rejected.' },
+    export_png: { schema: exportPngSchema, description: 'Export the explicit frame flattened through shared layer visibility as transparent PNG. Requires documentId, expectedRevision, frameId, and workspace-relative .png path; existing destination requires overwrite: true. Exact dimensions, no resampling or view overlays. Does not mark the project saved.' },
+    export_sprite_sheet: { schema: exportSheetSchema, description: 'Export every frame once in timeline order into a NEW workspace-relative directory path. Stage sheet.png and version-1 sheet.json together, then publish the directory. Refuse any existing export directory. Optional columns defaults near-square; output at most 4096×4096 / 64 MiB decoded RGBA. Metadata includes cell layout, frame count/IDs/durations, clip atlas indices/loop flags, source document/revision and units. No padding, trimming, rotation or resampling; unused cells transparent. Does not mark the project saved.' },
+  };
+  return Object.fromEntries(Object.entries(contracts).map(([name, contract]) => [name, { ...contract, readOnly: false, run: async (input: unknown, signal: AbortSignal) => result({ ...await files.execute(name as FileAction, input, signal) }) }]));
 }
 
 /** SDK handles protocol negotiation/transport. Tool validation here provides one

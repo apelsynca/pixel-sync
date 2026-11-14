@@ -18,6 +18,7 @@
     "check": "bun run typecheck && bun run lint && bun run test",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
     "smoke:editor": "bun run build && node scripts/smoke-editor.mjs",
+    "smoke:files": "bun run build && node scripts/smoke-files.mjs",
     "package:win": "bun run build && electron-forge package --platform=win32 --arch=x64"
   },
   "config": {

@@ -15,6 +15,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun run smoke:editor
+      - run: bun run smoke:files
       - run: bun run package
       - run: bun run smoke:packaged
       - run: bun run make

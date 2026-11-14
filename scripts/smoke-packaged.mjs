@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -20,6 +20,8 @@ const port = reservation.address().port;
 await new Promise(resolve => reservation.close(resolve));
 const token = randomBytes(32).toString('hex');
 await writeFile(join(directory, 'mcp-connection.json'), JSON.stringify({ port, token, enabled: true }));
+const workspace = join(directory, 'MCP workspace'); await mkdir(workspace);
+await writeFile(join(directory, 'workspace.json'), JSON.stringify({ root: await realpath(workspace) }));
 const env = { ...process.env, PIXEL_EDITOR_DATA_DIR: directory };
 delete env.ELECTRON_RUN_AS_NODE;
 const headless = process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY;
@@ -64,7 +66,15 @@ try {
   assert.equal(undo.structuredContent.document.revision, 2);
   const redo = await bridge.callTool({ name: 'redo', arguments: { documentId: document.documentId, expectedRevision: 2 } });
   assert.equal(redo.structuredContent.document.revision, 3);
-  console.log('Packaged HTTP and executable stdio share document edits, PNG previews, and undo/redo in one live app.');
+  const saved = await bridge.callTool({ name: 'save_project', arguments: { documentId: document.documentId, expectedRevision: 3, path: 'smoke.pixel.json' } });
+  assert.equal(saved.structuredContent.document.dirty, false);
+  assert.equal(JSON.parse(await readFile(join(workspace, 'smoke.pixel.json'), 'utf8')).version, 1);
+  const exported = await direct.callTool({ name: 'export_sprite_sheet', arguments: { documentId: document.documentId, expectedRevision: 3, path: 'smoke-sheet' } });
+  assert.equal(exported.structuredContent.frameCount, 1);
+  assert.equal(JSON.parse(await readFile(join(workspace, 'smoke-sheet', 'sheet.json'), 'utf8')).revision, 3);
+  const reopened = await bridge.callTool({ name: 'open_project', arguments: { path: 'smoke.pixel.json', current: { documentId: document.documentId, expectedRevision: 3 } } });
+  assert.equal(reopened.structuredContent.document.dirty, false); assert.notEqual(reopened.structuredContent.document.documentId, document.documentId);
+  console.log('Packaged HTTP and executable stdio share edits, PNG previews, history, project save/open, and sprite-sheet export in one live app.');
 } finally {
   await Promise.allSettled([bridge.close(), direct.close()]);
   if (application.exitCode === null) {

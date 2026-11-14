@@ -173,7 +173,7 @@ for (const scale of [1, 1.5]) {
     assert.equal(await page.getByRole('region', { name: 'Recent MCP operations' }).locator('li').count(), 50);
     await page.getByRole('button', { name: 'Close connections' }).click();
     // Verify the native unsaved-replacement guard without interacting with an OS dialog.
-    await application.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false }); });
+    await application.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 2, checkboxChecked: false }); });
     const identity = (await document()).documentId;
     await page.getByRole('button', { name: '＋ New canvas', exact: true }).click();
     await page.getByRole('button', { name: 'Create canvas', exact: true }).click();

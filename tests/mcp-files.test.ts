@@ -1,0 +1,80 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { PNG } from 'pngjs';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { CommandService } from '../src/application/commands';
+import { FileService } from '../src/persistence/files';
+import { startMcp } from '../src/mcp/server';
+import { saveSettings } from '../src/mcp/settings';
+import type { DocumentInfo } from '../src/core/document';
+import type { EditorStatus } from '../src/shared/api';
+
+const cleanup: (() => Promise<unknown>)[] = [];
+afterEach(async () => { for (const action of cleanup.splice(0).reverse()) await action(); });
+const token = 'd'.repeat(64), guard = (document: DocumentInfo) => ({ documentId: document.documentId, expectedRevision: document.revision });
+async function fixture() {
+  const directory = await mkdtemp(join(tmpdir(), 'pixel-mcp-files-')); cleanup.push(() => rm(directory, { recursive: true, force: true }));
+  const root = join(directory, 'workspace'); await mkdir(root);
+  const commands = new CommandService(), initial = await commands.newDocument({ width: 2, height: 2 });
+  let current = initial; commands.subscribe(event => { current = event.document; });
+  const files = new FileService(commands, directory); await files.initialize();
+  const running = await startMcp({ port: 0, token, commands, files, getStatus: (): EditorStatus => ({ instanceId: 'file-test', milestone: 'files', document: current, mcp: { enabled: true, endpoint: null, error: null } }) }); cleanup.push(() => running.close());
+  const client = new Client({ name: 'file-test', version: '1' }); cleanup.push(() => client.close());
+  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${running.port}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
+  const call = async (name: string, args: Record<string, unknown>) => await client.callTool({ name, arguments: args }) as CallToolResult;
+  const get = async () => (await call('get_document', {})).structuredContent as unknown as DocumentInfo;
+  return { directory, root, files, commands, initial, running, client, call, get };
+}
+const failure = (result: CallToolResult, code: string) => { expect(result.isError).toBe(true); expect(result.structuredContent).toMatchObject({ error: { code } }); };
+describe('MCP workspace file tools over real transports', () => {
+  it('advertises file schemas and setup state, requiring a workspace without affecting drawing tools', async () => {
+    const f = await fixture();
+    const tools = (await f.client.listTools()).tools;
+    expect(tools).toHaveLength(14); expect(tools.find(tool => tool.name === 'export_sprite_sheet')?.inputSchema.additionalProperties).toBe(false);
+    expect(await f.get()).toMatchObject({ capabilities: { files: true, workspaceConfigured: false } });
+    failure(await f.call('save_project', { ...guard(f.initial), path: 'hero.pixel.json' }), 'workspace_required');
+    expect((await f.call('get_preview', { documentId: f.initial.documentId, frameId: f.initial.frames[0].id })).isError).not.toBe(true);
+    await f.files.setWorkspace(f.root); expect(await f.get()).toMatchObject({ capabilities: { workspaceConfigured: true } });
+    await f.files.setWorkspace(null); failure(await f.call('export_png', { ...guard(f.initial), frameId: f.initial.frames[0].id, path: 'hero.png' }), 'workspace_required');
+  });
+  it('saves, exports, reopens projects and imports PNG through guarded calls with shared pixels', async () => {
+    const f = await fixture(); await f.files.setWorkspace(f.root);
+    const first = f.initial.frames[0].id, layer = f.initial.layers[0].id;
+    await f.call('edit_document', { ...guard(f.initial), operations: [{ type: 'set_pixels', frameId: first, layerId: layer, pixels: [{ x: 0, y: 0, color: '#12345680' }] }, { type: 'duplicate_frame', frameId: first, id: 'second' }, { type: 'set_frame_duration', frameId: 'second', duration: 250 }, { type: 'set_clip', name: 'walk', frameIds: ['second', first], loop: true }] });
+    const edited = await f.get();
+    expect((await f.call('save_project', { ...guard(edited), path: 'hero.pixel.json' })).structuredContent).toMatchObject({ document: { revision: 1, dirty: false }, path: 'hero.pixel.json' });
+    await f.call('export_png', { ...guard(edited), path: 'hero.png', frameId: first });
+    const png = PNG.sync.read(await readFile(join(f.root, 'hero.png'))); expect([...png.data.subarray(0, 4)]).toEqual([18, 52, 86, 128]);
+    await f.call('export_sprite_sheet', { ...guard(edited), path: 'walk', columns: 2 });
+    const sheet = JSON.parse(await readFile(join(f.root, 'walk', 'sheet.json'), 'utf8')); expect(sheet).toMatchObject({ frameCount: 2, clips: [{ name: 'walk', indices: [1, 0], loop: true }] });
+    await f.call('edit_document', { ...guard(await f.get()), operations: [{ type: 'clear_layer', frameId: first, layerId: layer }] });
+    failure(await f.call('open_project', { path: 'hero.pixel.json', current: guard(await f.get()) }), 'unsaved_document');
+    const opened = await f.call('open_project', { path: 'hero.pixel.json', current: guard(await f.get()), discardUnsaved: true }); expect(opened.structuredContent).toMatchObject({ document: { dirty: false, revision: 0, frames: [{ id: first }, { id: 'second', duration: 250 }] } });
+    const read = await f.call('get_pixels', { documentId: (await f.get()).documentId, frameId: first, layerId: layer, x: 0, y: 0, width: 1, height: 1 }); expect(Buffer.from(read.structuredContent!.data as string, 'base64')).toEqual(png.data.subarray(0, 4));
+    const imported = await f.call('import_png', { path: 'hero.png', current: guard(await f.get()) }); expect(imported.structuredContent).toMatchObject({ document: { dirty: true, revision: 0, frames: [{ duration: 100 }] } });
+  });
+  it('denies absolute paths, traversal and unknown escape flags while preserving bytes on overwrite/format failures', async () => {
+    const f = await fixture(); await f.files.setWorkspace(f.root);
+    for (const path of ['../escape.pixel.json', 'C:\\escape.pixel.json', join(f.directory, 'outside.pixel.json')]) failure(await f.call('save_project', { ...guard(f.initial), path }), 'path_denied');
+    failure(await f.call('save_project', { ...guard(f.initial), path: 'hero.pixel.json', native: true }), 'invalid_arguments');
+    await f.call('save_project', { ...guard(f.initial), path: 'hero.pixel.json' }); const bytes = await readFile(join(f.root, 'hero.pixel.json'));
+    failure(await f.call('save_project', { ...guard(f.initial), path: 'hero.pixel.json' }), 'already_exists'); expect(await readFile(join(f.root, 'hero.pixel.json'))).toEqual(bytes);
+    await writeFile(join(f.root, 'bad.pixel.json'), '{"version":99}'); const before = await f.get();
+    failure(await f.call('open_project', { path: 'bad.pixel.json', current: guard(before), discardUnsaved: true }), 'unsupported_format'); expect(await f.get()).toEqual(before);
+    failure(await f.call('save_project', { ...guard(before), expectedRevision: 999, path: 'other.pixel.json' }), 'stale_revision');
+  });
+  it('forwards file results and errors unchanged through the compiled stdio bridge', async () => {
+    const f = await fixture(); await f.files.setWorkspace(f.root); await saveSettings(f.directory, { port: f.running.port, token, enabled: true });
+    const bridge = new Client({ name: 'file-bridge-test', version: '1' }); cleanup.push(() => bridge.close());
+    await bridge.connect(new StdioClientTransport({ command: process.execPath, args: ['dist/bridge.cjs', f.directory], stderr: 'pipe' }));
+    const result = await bridge.callTool({ name: 'save_project', arguments: { ...guard(f.initial), path: 'bridge.pixel.json' } }); expect(result.isError).not.toBe(true);
+    const args = { ...guard(f.initial), path: '../denied.pixel.json' };
+    expect(await bridge.callTool({ name: 'save_project', arguments: args })).toEqual(await f.call('save_project', args));
+    expect(JSON.parse(await readFile(join(f.root, 'bridge.pixel.json'), 'utf8')).version).toBe(1);
+  });
+});

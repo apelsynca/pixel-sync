@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import type { ClientId, ClientSetup, EditorStatus, McpOperation } from '../shared/api';
+import type { ClientId, ClientSetup, EditorStatus, McpOperation, FileStatus } from '../shared/api';
 
 export function ConnectionPanel({ close }: { close: () => void }) {
   const [clients, setClients] = useState<ClientSetup[]>([]);
   const [status, setStatus] = useState<EditorStatus>();
+  const [files, setFiles] = useState<FileStatus>();
   const [operations, setOperations] = useState<McpOperation[]>([]);
   const [instructions, setInstructions] = useState<ClientId | null>(null);
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState('');
-  async function refresh() { const [nextClients, nextStatus] = await Promise.all([window.editor.getClients(), window.editor.getStatus()]); setClients(nextClients); setStatus(nextStatus); }
+  async function refresh() { const [nextClients, nextStatus, nextFiles] = await Promise.all([window.editor.getClients(), window.editor.getStatus(), window.editor.getFileState()]); setClients(nextClients); setStatus(nextStatus); setFiles(nextFiles); }
   useEffect(() => { void refresh().catch(cause => setError(String(cause))); }, []);
+  useEffect(() => window.editor.onFileState(setFiles), []);
   useEffect(() => {
     const unsubscribe = window.editor.onMcpOperation(operation => setOperations(current => [operation, ...current].slice(0, 50)));
     void window.editor.getRecentOperations().then(snapshot => setOperations(current => [...current, ...snapshot].filter((operation, index, all) => all.findIndex(item => item.id === operation.id) === index).slice(0, 50))).catch(cause => setError(String(cause)));
@@ -38,9 +40,10 @@ export function ConnectionPanel({ close }: { close: () => void }) {
       <p>Keep Pixel Editor open. Both apps must reach this computer’s localhost endpoint. Windows/WSL and remote sessions need separate network setup.</p>
       <p><strong>Try drawing next:</strong> ask your assistant to inspect the document, add a new layer, and create a two-frame animation. It can draw, edit layers/frames/clips, read pixels, request PNG previews, and undo/redo. Changes appear live in this editor.</p>
       <button onClick={() => void perform(() => window.editor.copyDrawingPrompt(), 'Drawing prompt copied.')}>Copy first drawing prompt</button>
-      <p>Choose the new clip in the timeline and press Play. Undo reverses the assistant’s last batch; your assistant can also undo or redo manual strokes. After another edit, it must read the current revision before retrying. Saving and file exports arrive in milestone 5.</p>
+      <p>Choose the new clip in the timeline and press Play. Undo reverses the assistant’s last batch; your assistant can also undo or redo manual strokes. After another edit, it must read the current revision before retrying. Choose an MCP workspace below to let it save/open projects, import/export PNG, and export sprite sheets with timing and clip metadata.</p>
       <details><summary>Advanced setup and troubleshooting</summary><p>Configuration: <code>{clients.find(client => client.client === instructions)?.configPath}</code>. Connect preserves unrelated settings and makes a private backup of an existing file.</p><p>If automatic setup fails, close the client and retry. Check any reported permissions or configuration error. A different port or token needs Update connection. If local server startup fails, check the error below and close another app using its port.</p><p>The fallback below copies a configuration fragment containing a private credential. Merge its pixel-editor entry into the client configuration shown above; keep it private. This is optional when Connect succeeds.</p><button onClick={() => void perform(() => window.editor.copyClientSetup(instructions), 'Private configuration copied. It contains a credential; keep it private.')}>Copy private configuration</button></details>
     </div>}
+    <section className="workspace-settings" aria-label="MCP file workspace"><h3>MCP file workspace</h3><p>{files?.workspace ? <code>{files.workspace}</code> : 'Choose one folder the assistant may read and write. Drawing and previews work without a workspace.'}</p>{files?.workspaceError && <p className="error">{files.workspaceError}</p>}<button disabled={busy} onClick={() => void perform(() => window.editor.chooseWorkspace(), 'MCP workspace selected.')}>{files?.workspace ? 'Change workspace…' : 'Choose workspace…'}</button>{files?.workspace && <button disabled={busy} onClick={() => void perform(() => window.editor.clearWorkspace(), 'MCP file access disabled.')}>Clear workspace</button>}</section>
     <div className="connection-controls"><button disabled={busy} onClick={() => void perform(() => window.editor.setMcpEnabled(!status?.mcp.enabled), 'Server setting updated.')}>{status?.mcp.enabled ? 'Disable MCP' : 'Enable MCP'}</button><code>{status?.mcp.endpoint}</code></div>
     <section className="recent-operations" aria-label="Recent MCP operations"><h3>Recent MCP operations <small>Last 50 · this session</small></h3>{operations.length ? <ol>{operations.map(operation => <li key={operation.id}><span className={operation.outcome === 'error' ? 'error' : ''}>{operation.tool}</span><small>{operation.client} · {operation.revision === undefined ? operation.summary : `r${operation.revision} · ${operation.summary}`} · {operation.durationMs} ms</small></li>)}</ol> : <p>No tool calls yet. Run the first prompt in your client.</p>}</section>
     <p role="status">{message}</p><p className="error" role="alert">{error || status?.mcp.error}</p>

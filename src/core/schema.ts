@@ -29,13 +29,14 @@ export const operationSchema = z.discriminatedUnion('type', [
 ]);
 export type Operation = z.infer<typeof operationSchema>;
 export const guardSchema = z.strictObject({ documentId: id, expectedRevision: z.number().int().nonnegative() });
+export const replacementSchema = z.strictObject({ current: guardSchema.optional(), discardUnsaved: z.boolean().default(false) });
 export type Guard = z.infer<typeof guardSchema>;
 export const batchSchema = guardSchema.extend({ operations: z.array(operationSchema).min(1).max(LIMITS.operations) });
 export const newDocumentSchema = z.strictObject({ width: z.number().int().min(1).max(LIMITS.dimension).default(32), height: z.number().int().min(1).max(LIMITS.dimension).default(32), current: guardSchema.optional(), discardUnsaved: z.boolean().default(false) });
 export const pixelReadSchema = z.strictObject({ frameId: id, layerId: id.optional(), x: z.number().int().nonnegative(), y: z.number().int().nonnegative(), width: z.number().int().positive(), height: z.number().int().positive() });
 export type PixelRead = z.infer<typeof pixelReadSchema>;
 
-export type ErrorCode = 'invalid_arguments' | 'stale_revision' | 'missing_document' | 'missing_layer' | 'missing_frame' | 'size_limit' | 'unsaved_document' | 'empty_history' | 'cancelled';
+export type ErrorCode = 'invalid_arguments' | 'stale_revision' | 'missing_document' | 'missing_layer' | 'missing_frame' | 'size_limit' | 'unsaved_document' | 'empty_history' | 'cancelled' | 'unsupported_format' | 'path_denied' | 'workspace_required' | 'already_exists' | 'io_error';
 export class DocumentError extends Error {
   constructor(public readonly code: ErrorCode, message: string) { super(message); this.name = 'DocumentError'; }
 }

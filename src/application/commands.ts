@@ -32,6 +32,17 @@ export class CommandService {
     }
   }
   getDocument(signal?: AbortSignal) { return this.enqueue(() => this.engine.getDocument(), signal); }
+  /** File operations hold the queue across I/O, publishing only after a successful
+   * load/save. The callback receives the validated engine, never mutable state. */
+  runFileAction<T>(action: (engine: DocumentEngine) => Promise<T>, signal?: AbortSignal): Promise<T> {
+    return this.enqueue(async () => {
+      const before = this.engine.getDocument();
+      const result = await action(this.engine);
+      const after = this.engine.getDocument();
+      if (after && (before?.documentId !== after.documentId || before.revision !== after.revision || before.dirty !== after.dirty)) this.notify({ document: after });
+      return result;
+    }, signal);
+  }
   inspectPixels(input: unknown, signal?: AbortSignal) {
     const request = structuredClone(input);
     return this.enqueue(() => {

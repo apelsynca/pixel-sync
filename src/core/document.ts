@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { composite, flood, line, paint, rgba } from './drawing';
-import { batchSchema, fail, guardSchema, LIMITS, newDocumentSchema, parse, pixelReadSchema, type Guard, type Operation } from './schema';
+import { batchSchema, fail, guardSchema, LIMITS, newDocumentSchema, parse, pixelReadSchema, replacementSchema, type Guard, type Operation } from './schema';
+import { decodeProject, type ProjectFile } from './project';
 
 export interface Layer { id: string; name: string; visible: boolean }
 export interface Frame { id: string; duration: number }
@@ -50,6 +51,28 @@ export class DocumentEngine {
     if (guard.documentId !== this.documentId || guard.expectedRevision !== this.revision) fail('stale_revision', 'Document identity or revision changed; read the document and retry');
   }
   assertRevision(input: unknown): void { this.check(parse(guardSchema, input)); }
+  assertReplacement(input: unknown): void {
+    const args = parse(replacementSchema, input);
+    if (this.state) {
+      if (!args.current) fail('stale_revision', 'Replacement requires the current document identity and revision');
+      this.check(args.current);
+      if (this.version !== this.savedVersion && !args.discardUnsaved) fail('unsaved_document', 'Replacement requires discardUnsaved or a prior save');
+    } else if (args.current) fail('stale_revision', 'There is no current document to replace');
+  }
+  exportProject(): ProjectFile {
+    const state = this.requireState();
+    return { version: 1, width: this.width, height: this.height, ...metadata(state), frames: state.frames.map(frame => ({ ...frame,
+      cels: Object.fromEntries(state.layers.map(layer => { const pixels = state.cels.get(frame.id)!.get(layer.id)!; return [layer.id, Buffer.from(pixels.buffer, pixels.byteOffset, pixels.byteLength).toString('base64')]; })),
+    })) };
+  }
+  replaceProject(project: unknown, input: unknown, dirty = false): DocumentInfo {
+    this.assertReplacement(input);
+    const decoded = decodeProject(project);
+    this.state = decoded; this.width = decoded.width; this.height = decoded.height;
+    this.documentId = randomUUID(); this.revision = 0; this.undoEntries = []; this.redoEntries = []; this.historyBytes = 0;
+    this.version = ++this.nextVersion; this.savedVersion = dirty ? 0 : this.version;
+    return this.getDocument()!;
+  }
   newDocument(input: unknown): DocumentInfo {
     const args = parse(newDocumentSchema, input);
     if (this.state) {

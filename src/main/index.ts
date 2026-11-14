@@ -1,7 +1,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { runBridge } from '../mcp/bridge';
@@ -11,6 +11,9 @@ import { CommandService, type Gesture } from '../application/commands';
 import { guardSchema, operationSchema, parse } from '../core/schema';
 import type { ClientId, EditorStatus, McpOperation } from '../shared/api';
 import { connectClient, inspectClient, setupSnippet } from './client-setup';
+import { FileService } from '../persistence/files';
+import { RecoveryManager } from '../persistence/recovery';
+import { FileDialogs } from './file-dialogs';
 
 app.setName('Pixel Editor');
 const dataDirectory = process.env.PIXEL_EDITOR_DATA_DIR ?? join(app.getPath('appData'), 'Pixel Editor');
@@ -22,6 +25,10 @@ if (process.argv.includes('--mcp-stdio')) {
   app.quit();
 } else {
   const commands = new CommandService();
+  const files = new FileService(commands, dataDirectory);
+  let recovery: RecoveryManager;
+  let fileDialogs: FileDialogs;
+  let shuttingDown = false;
   const instanceId = randomUUID();
   const paths = { home: homedir(), env: process.env, platform: process.platform };
   const calls = new Map<ClientId, string>();
@@ -37,13 +44,17 @@ if (process.argv.includes('--mcp-stdio')) {
   const cancelGesture = () => { gesture?.handle.cancel(); gesture = undefined; };
   const serial = <T,>(action: () => Promise<T>) => { const result = queue.then(action); queue = result.catch(() => undefined); return result; };
   commands.subscribe(event => { document = event.document; window?.webContents.send('editor:changed', event); });
-  const status = (): EditorStatus => ({ instanceId, milestone: 'mcp-editor', document, mcp: { enabled: !!running, endpoint: running ? `http://127.0.0.1:${running.port}/mcp` : null, error } });
+  const fileState = () => ({ ...files.state(), ...(recovery?.state() ?? { recoveryAvailable: false, recoveryError: null }) });
+  const filesChanged = () => { if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) { window.webContents.send('editor:files-changed', fileState()); window.setTitle(`${basename(files.state().projectPath ?? 'Untitled sprite')} — Pixel Editor`); } };
+  files.subscribe(filesChanged);
+  const status = (): EditorStatus => ({ instanceId, milestone: 'files', document, mcp: { enabled: !!running, endpoint: running ? `http://127.0.0.1:${running.port}/mcp` : null, error } });
   const setEnabled = async (enabled: boolean) => {
+    if (enabled && shuttingDown) throw new Error('Pixel Editor is closing');
     error = null;
     if (running) { await running.close(); running = undefined; }
     settings.enabled = enabled;
     if (enabled) {
-      try { running = await startMcp({ port: settings.port, token: settings.token, getStatus: status, commands,
+      try { running = await startMcp({ port: settings.port, token: settings.token, getStatus: status, commands, files,
         onStatusCall: client => { calls.set(client, new Date().toISOString()); },
         onOperation: operation => { recentOperations.unshift(operation); recentOperations.splice(50); if (window && !window.isDestroyed()) window.webContents.send('editor:operation', operation); },
       }); }
@@ -64,7 +75,13 @@ if (process.argv.includes('--mcp-stdio')) {
   app.on('second-instance', () => { window?.show(); window?.focus(); });
   app.whenReady().then(async () => {
     settings = await loadSettings(dataDirectory);
+    await files.initialize();
     await commands.newDocument({});
+    const initial = (await commands.getDocument())!;
+    await commands.markSaved({ documentId: initial.documentId, expectedRevision: initial.revision });
+    recovery = new RecoveryManager(commands, dataDirectory, filesChanged);
+    await recovery.initialize();
+    fileDialogs = new FileDialogs(commands, files, recovery, () => window!, cancelGesture);
     await setEnabled(settings.enabled);
     handle('editor:status', status);
     handle('editor:mcp-enable', input => serial(() => setEnabled(parse(z.boolean(), input))));
@@ -73,16 +90,13 @@ if (process.argv.includes('--mcp-stdio')) {
     handle('editor:edit', async input => { await commands.edit(input); });
     handle('editor:undo', async input => { await commands.undo(input); });
     handle('editor:redo', async input => { await commands.redo(input); });
-    handle('editor:new', async input => {
-      const dimensions = parse(z.strictObject({ width: z.number().int().min(1).max(512), height: z.number().int().min(1).max(512) }), input);
-      cancelGesture();
-      const current = await commands.getDocument();
-      if (current?.dirty && current.revision > 0) {
-        const answer = await dialog.showMessageBox(window!, { type: 'question', message: 'Discard this artwork and create a new canvas?', detail: 'Project saving arrives in a later milestone. This will discard the current pixels and animation.', buttons: ['Keep editing', 'Discard and create'], defaultId: 0, cancelId: 0 });
-        if (answer.response !== 1) return current;
-      }
-      return commands.newDocument({ ...dimensions, current: current ? { documentId: current.documentId, expectedRevision: current.revision } : undefined, discardUnsaved: true });
-    });
+    handle('editor:new', input => fileDialogs.newDocument(input));
+    handle('editor:files-state', fileState);
+    handle('editor:file-save', input => fileDialogs.save(parse(z.boolean(), input)));
+    handle('editor:file-open', () => fileDialogs.open()); handle('editor:file-import', () => fileDialogs.open(true));
+    handle('editor:file-export-png', input => fileDialogs.exportPng(input)); handle('editor:file-export-sheet', input => fileDialogs.exportSheet(input));
+    handle('editor:workspace-choose', () => fileDialogs.chooseWorkspace()); handle('editor:workspace-clear', async () => { await files.setWorkspace(null); });
+    handle('editor:recovery-restore', () => fileDialogs.restore()); handle('editor:recovery-discard', () => recovery.discard());
     handle('editor:gesture-begin', async input => {
       if (gesture || gesturePending) throw new Error('A stroke is already active');
       gesturePending = true;
@@ -124,11 +138,14 @@ if (process.argv.includes('--mcp-stdio')) {
     window.webContents.on('render-process-gone', cancelGesture);
     window.on('closed', cancelGesture);
     let closing = false;
+    let closePrompt = false;
     window.on('close', event => {
       cancelGesture();
-      if (closing || !document?.dirty || document.revision === 0) return;
+      if (closing || !document?.dirty) return;
       event.preventDefault();
-      void dialog.showMessageBox(window!, { type: 'question', message: 'Discard unsaved artwork and quit?', detail: 'Project saving arrives in a later milestone.', buttons: ['Keep editing', 'Discard and quit'], defaultId: 0, cancelId: 0 }).then(answer => { if (answer.response === 1) { closing = true; window?.close(); } });
+      if (closePrompt) return;
+      closePrompt = true;
+      void fileDialogs.confirmClose().then(confirmed => { if (confirmed) { closing = true; window?.close(); } }).catch(cause => { dialog.showErrorBox('Could not close safely', cause instanceof Error ? cause.message : String(cause)); }).finally(() => { closePrompt = false; });
     });
     await window.loadURL(rendererUrl);
   }).catch(cause => { process.stderr.write(`${cause instanceof Error ? cause.message : cause}\n`); app.exit(1); });
@@ -136,7 +153,8 @@ if (process.argv.includes('--mcp-stdio')) {
   let quitting = false;
   app.on('will-quit', event => {
     if (quitting) return;
-    event.preventDefault(); cancelGesture(); quitting = true;
-    void queue.then(async () => { try { await running?.close(); } finally { app.exit(0); } });
+    event.preventDefault(); shuttingDown = true; quitting = true;
+    const stopped = running?.close(); cancelGesture();
+    void queue.then(async () => { try { await stopped; await commands.getDocument(); await recovery?.finish(); } finally { app.exit(0); } });
   });
 }

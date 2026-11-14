@@ -1,8 +1,8 @@
 # Pixel Art Editor — Implementation Plan
 
-Status: milestones 3 and 4 are implemented, including the manual animation editor, in-app Codex/Claude Code setup, and live MCP drawing/history/PNG previews. Automated Linux checks exercise real Electron input and real HTTP/stdio editing at two display scales. Updated Windows runtime and native assistant-driven acceptance remain unverified. Milestones 5–6 have not started. The user's earlier Windows launch verification covered the foundation build.
+Status: milestone 5 is implemented: editable projects, PNG import/export, sprite sheets/metadata, workspace-bound MCP file tools, and crash recovery. Automated Linux checks cover real Electron file workflows and forced-crash/restart recovery in addition to drawing at two display scales and HTTP/stdio editing. Updated Windows runtime and native assistant-driven acceptance remain unverified. Milestone 6 (release acceptance and Bevy sample) has not started. The user's earlier Windows launch verification covered the foundation build.
 
-Implemented onboarding: **Connect AI client → Connect to Codex / Connect to Claude Code** configures authenticated local HTTP and provides instructions inside the app. Basic setup requires no executable path, token lookup, environment variables, or manual configuration editing. Each guide now includes a first drawing prompt, shared undo/playback instructions, and a recent-operation list. File tools remain milestone 5.
+Implemented onboarding: **Connect AI client → Connect to Codex / Connect to Claude Code** configures authenticated local HTTP and provides instructions inside the app. Basic setup requires no executable path, token lookup, environment variables, or manual configuration editing. Each guide includes a first drawing prompt, shared undo/playback instructions, a recent-operation list, and native selection of an MCP file workspace.
 
 ## Implementation progress — 2026-11-14
 
@@ -80,7 +80,22 @@ The engine and command service now drive both the manual editor and MCP editing.
 - [x] Pass the expanded packaged Linux HTTP/stdio and UI smoke checks, then rebuild the Windows x64 folder at `out/Pixel Editor-win32-x64/`. The updated Windows executable has not been run on this Linux host.
 - [ ] Perform native Codex and Claude Code drawing/preview/playback/undo acceptance on Windows 11 and record the tested runtime versions. Existing configuration-parser checks and SDK clients do not establish this acceptance.
 
-MCP save/open/import/export tools are intentionally implemented with persistence/workspace enforcement in milestone 5. No placeholder file tool claims to save artwork.
+MCP save/open/import/export tools are now implemented with persistence/workspace enforcement in milestone 5.
+
+### Milestone 5 — implemented 2026-11-14; Windows acceptance pending
+
+- [x] Implement version-1 `.pixel.json` projects with exact RGBA, shared layer order/visibility, frame IDs/timing, palette and clips. Validate versions, structures, unique IDs/references, canonical base64/lengths, collection counts, 192 MiB serialized input and 128 MiB decoded pixels. Loading has a new document identity and no persisted history.
+- [x] Serialize file reads/writes through the command service, hold consistent revisions across asynchronous I/O, and mark a project clean only after successful publication. Stage sibling files, flush and publish atomically, require explicit overwrite for MCP, and preserve old files and dirty/history state on pre-publication failures.
+- [x] Add native Save/Save as/Open/PNG import/export and sprite-sheet dialogs, file shortcuts, associated filenames, and Save/Discard/Cancel replacement/close prompts. Cancelling Save retains the artwork; automatically appended extensions cannot bypass overwrite confirmation.
+- [x] Import bounded static PNGs with exact RGBA and no palette quantization; preflight signatures/dimensions/chunks and inflation size, including interlaced PNG. Reject unsupported APNG/16-bit channels. Export flattened PNG through the same compositor as previews.
+- [x] Export every timeline frame once into a regular-grid PNG and version-1 JSON sidecar with cell layout, frame count/IDs/indices/durations, clip order/looping, source revision and explicit units. Enforce 4096×4096 / 64 MiB and publish both files in a new directory; refuse existing export directories.
+- [x] Expose five MCP file tools through real HTTP/stdio. Require one user-selected persistent workspace; reject traversal, absolute/drive/UNC paths, ADS, unsafe names, linked parents/files, root redirection and detected folder swaps. Recheck paths during access/publication; native dialogs remain user-selected access outside the MCP workspace.
+- [x] Add debounced, atomic recovery snapshots; offer recovery in-app after abnormal exit, preserve pending/corrupt snapshots until an explicit choice, restore as unsaved artwork without reusing an old path, and clear snapshots after successful save or normal closing. Report recovery write failures in the UI.
+- [x] Pass 67 tests, including animated project/PNG round trips, exact sprite-sheet cells/clip metadata, async revision consistency, failed saves/exports, overwrite races, bounded decoding, workspace escapes/links, staged cancellation, recovery, and four actual HTTP/compiled-stdio file-tool tests.
+- [x] Pass real Electron file workflow tests: native Save/Open/import/export, Save shortcut, explicit appended-extension overwrite, UI workspace selection and MCP save, forced process kill/restart, recovery, close Cancel/Save, and normal-close cleanup. Existing 100%/150% drawing/zoom/MCP smoke checks remain covered.
+- [x] Add the file/recovery smoke script to Windows CI and document native format, sprite metadata, path rules, error categories and recovery behavior in `docs/project-format.md`.
+- [x] Pass the expanded packaged Linux HTTP/executable-stdio save/open/export smoke and packaged file/crash-recovery UI checks. Refresh the Windows x64 folder at `out/Pixel Editor-win32-x64/`.
+- [ ] Verify native Windows 11 file dialogs, NTFS/junction behavior, installation, and native assistant file calls in the updated packaged application. Linux and mocked-dialog automated results do not establish these checks.
 
 ## 1. Goal and decisions
 
