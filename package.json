@@ -13,11 +13,13 @@
     "start": "bun run build && electron .",
     "package": "bun run build && electron-forge package",
     "make": "bun run build && electron-forge make",
+    "make:win": "node scripts/make-windows.mjs",
+    "make:win:verified": "node scripts/make-windows.mjs --from-package",
     "make:verified": "electron-forge make --from-package",
     "release:manifest": "node scripts/release-manifest.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "bun run build && vitest run",
+    "test": "bun run build && vitest run tests",
     "check": "bun run typecheck && bun run lint && bun run test",
     "fixtures:bevy": "bun scripts/bevy-fixtures.ts",
     "smoke:bevy": "cargo test --manifest-path examples/bevy/Cargo.toml --locked --no-default-features",
@@ -41,7 +43,6 @@
   },
   "devDependencies": {
     "@electron-forge/cli": "8.0.1",
-    "@electron-forge/maker-squirrel": "8.0.1",
     "@electron-forge/maker-zip": "8.0.1",
     "@eslint/js": "10.0.1",
     "@types/node": "26.6.6",
@@ -60,7 +61,6 @@
   },
   "packageManager": "bun@1.4.4",
   "trustedDependencies": [
-    "esbuild",
-    "electron-winstaller"
+    "esbuild"
   ]
 }

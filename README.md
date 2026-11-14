@@ -39,27 +39,33 @@ MCP defaults to disabled; Connect enables it. No manual executable path, token l
 ## Build and checks
 
 ```sh
-bun run check           # TypeScript, ESLint, 67 tests, production build
+bun run check           # TypeScript, ESLint, 71 tests, production build
 bun run smoke:editor    # Real Electron UI checks at 100% and 150% display scales
 bun run smoke:files     # Native file flows, workspace MCP, crash/restart recovery
 bun run smoke:playback  # Immediate editing after Space/Pause/clip completion
 bun run package         # Unpacked application for the current platform
 bun run smoke:packaged  # Packaged GUI + HTTP + executable stdio checks
 bun run package:win     # Build Windows x64 from Linux or Windows
-bun run make            # Windows Squirrel installer and ZIP, on Windows
-bun run make:verified   # Make artifacts from an already packaged/tested app
+bun run make            # ZIP archive for the current platform
+bun run make:verified   # ZIP from an already packaged/tested app
+bun run make:win        # Windows x64 setup EXE; works natively on Linux too
+bun run make:win:verified # Setup EXE from the existing Windows x64 package
 bun run release:manifest # Hash out/make artifacts and record source/build provenance
 bun run smoke:bevy      # Headless Bevy export/timing tests (requires Rust 1.97.1+)
 bun run check:bevy      # Compile-check the Bevy graphical viewer
 ```
 
-The Windows build is `out/PixelSync-win32-x64/PixelSync.exe`. Copy the **entire** `PixelSync-win32-x64` folder to Windows; the executable needs its accompanying runtime files. `package:win` supplies `--platform=win32 --arch=x64` automatically. Installer creation and installation require Windows; artifacts are unsigned.
+Run `bun run make:win` to create `out/make/windows/x64/0.1.0/PixelSync-0.1.0-Setup.exe` and its checksums. Copy that single EXE to Windows 11 and run it. The installer includes the full runtime, installs for the current user under `%LOCALAPPDATA%\Programs\PixelSync`, adds Start menu/desktop shortcuts and an Installed apps entry, and offers to launch PixelSync. No administrator access, Node or Bun is required on the target machine. Close PixelSync before upgrading or uninstalling. Projects, `%APPDATA%\PixelSync` settings and AI client configuration are retained on uninstall.
+
+Installer creation works on Linux, macOS and Windows without Wine or Mono. The build downloads a portable NSIS 3.12 toolset (4 MB), verifies its pinned SHA-256, and caches it under `out/tools/`. Node, Bun and `tar` are required on the build host; Windows 11 includes `tar`. See [installer build details](docs/windows-installer.md). Artifacts are unsigned; Windows may show an unknown-publisher warning. Installation, upgrade and uninstall still need acceptance testing on Windows.
+
+For a portable Windows build, use `bun run package:win`, then copy the **entire** `out/PixelSync-win32-x64` folder to Windows; its `PixelSync.exe` needs the accompanying runtime files.
 
 Linux `make:verified` creates a ZIP for the existing Linux package and requires the `zip` command (`sudo pacman -S --needed zip` on Arch).
 
 The packaged smoke check copies the runtime into a temporary path containing spaces and verifies executable stdio bridge cleanup. The smoke scripts use isolated temporary application/client configuration, never your real MCP registrations. They cover manual and MCP drawing, bidirectional undo/redo, PNG/contact-sheet previews, live canvas updates, operation history, file round trips and crash recovery. On headless Linux they use Electron's headless Ozone platform; desktop runs retain Electron's normal sandbox settings. Pass a packaged executable to `node scripts/smoke-editor.mjs "<path>"`, `node scripts/smoke-playback.mjs "<path>"`, or `node scripts/smoke-files.mjs "<path>"` to exercise that build.
 
-For a release, package once, run the packaged checks, then use `make:verified` to archive the tested application. `release:manifest` writes `out/make/SHA256SUMS` and `release-manifest.json` with artifact sizes/hashes, source commit, working-tree dirty flag, lockfile hash and build environment. Keep the manifest and checksums beside the artifacts; archive the source separately when the working tree is modified. Run packaged drawing, playback and recovery checks locally before making artifacts.
+For a release, package once, run the packaged checks, then use `make:verified` for ZIPs or `make:win:verified` for the Windows installer. The Windows installer command generates `SHA256SUMS` and `release-manifest.json` beside the setup EXE automatically. `release:manifest` can generate the same records for other artifacts. The manifest contains artifact sizes/hashes, source commit, working-tree dirty flag, lockfile hash and build environment. Keep the manifest and checksums beside the artifacts; archive the source separately when the working tree is modified. Run packaged drawing, playback and recovery checks locally before making artifacts.
 
 Local checks and headless Electron UI tests pass. Generated configurations were parsed by codex-cli 0.168.0 and Claude Code 2.1.325 in isolated client homes; the user subsequently confirmed that the Windows package works and drawing through Codex succeeds. Claude Code tool calls and detailed Windows installer/file/playback acceptance remain unrecorded. Build, test and release checks run locally.
 

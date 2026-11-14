@@ -17,6 +17,7 @@ import { FileDialogs } from './file-dialogs';
 import { installEditorMenu } from './menu';
 
 app.setName('PixelSync');
+if (process.platform === 'win32') app.setAppUserModelId('io.pixelsync.app');
 const dataDirectory = process.env.PIXEL_SYNC_DATA_DIR ?? join(app.getPath('appData'), 'PixelSync');
 app.setPath('userData', dataDirectory);
 if (process.argv.includes('--mcp-stdio')) {

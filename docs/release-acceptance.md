@@ -8,7 +8,7 @@ Record the commit or working-tree description, artifact filename and SHA-256, Wi
 
 | Verification | Current evidence |
 | --- | --- |
-| Editor type checking, lint, production build, 67 tests | Passed on Linux, 2026-11-14 |
+| Editor type checking, lint, production build, 71 tests | Passed on Linux, 2026-11-14 |
 | Electron drawing/MCP at 100% and 150%; native menu actions | Passed on Linux, 2026-11-14 |
 | Electron files/workspace/crash-restart recovery | Passed on Linux, 2026-11-14; native dialog results supplied by test automation |
 | Packaged HTTP/stdio editing, files, executable path with spaces and bridge cleanup | Passed on Linux, 2026-11-14; Windows x64 package rebuilt, Windows execution pending |
@@ -16,6 +16,8 @@ Record the commit or working-tree description, artifact filename and SHA-256, Wi
 | Artifact SHA-256 and source/build manifest generation | Verified on Linux, including checksum verification, repeated generation and paths with spaces; run locally |
 | Linux release ZIP from tested runtime | Created 2026-11-14; ZIP integrity and SHA-256 passed; executable/app archive match tested package. Artifacts and manifest under `out/make/` |
 | Windows package operation | User confirms the Windows package works, 2026-11-14; detailed scenarios below remain unrecorded |
+| Windows NSIS setup EXE compilation without Wine/Mono | Passed on Linux, 2026-11-14; actual Windows install/upgrade/uninstall pending |
+| NSIS silent install/reinstall, fixture upgrade, uninstall and running-process guard | Passed under Wine 11.22, 2026-11-14; [artifact and evidence](windows-installer-verification.md); native Windows acceptance pending |
 | Native Codex drawing | User confirms successful drawing, 2026-11-14; client version not recorded |
 | Installer and native Claude Code integration | Pending |
 | Bevy 0.20.1 metadata/timing/PNG asset loading and viewer compile | See sample commands below; local run recorded in PLAN.md |
@@ -36,15 +38,18 @@ bun run smoke:packaged
 node scripts/smoke-editor.mjs out/PixelSync-win32-x64/PixelSync.exe
 node scripts/smoke-playback.mjs out/PixelSync-win32-x64/PixelSync.exe
 node scripts/smoke-files.mjs out/PixelSync-win32-x64/PixelSync.exe
-bun run make:verified
-bun run release:manifest
+bun run make:win:verified
 ```
 
-The Squirrel installer and ZIP are under `out/make/`, alongside generated `SHA256SUMS` and `release-manifest.json`. `make:verified` uses the existing packaged app, so the installer contains the runtime just tested. Generate artifacts in a clean `out/make/` directory to avoid including older builds. The manifest records artifact paths, sizes and SHA-256 hashes, source commit/dirty state, Bun lockfile hash, and build platform/architecture/Node version. The package manager field records the project's pinned version. A dirty flag does not identify uncommitted source: archive that source separately. Hashes establish file integrity, not code signing or successful installation. Archive the full artifact, checksum, manifest and corresponding source revision. `out/PixelSync-win32-x64/PixelSync.exe` needs its whole runtime folder. Source examples and Rust build output are excluded from Electron packages.
+The NSIS setup EXE is under `out/make/windows/x64/<version>/`, alongside automatically generated `SHA256SUMS` and `release-manifest.json`. `make:win:verified` uses the existing Windows package, so the installer contains the runtime just tested. `make:verified` separately creates a portable ZIP. The manifest records artifact paths, sizes and SHA-256 hashes, source commit/dirty state, Bun lockfile hash, and build platform/architecture/Node version. A dirty flag does not identify uncommitted source: archive that source separately. Hashes establish file integrity, not code signing or successful installation. Archive the full artifact, checksum, manifest and corresponding source revision. The setup EXE includes the full runtime; the portable `out/PixelSync-win32-x64/PixelSync.exe` needs its whole runtime folder. Source examples, installer sources and Rust build output are excluded from Electron packages.
+
+Installer compilation also works natively on Linux/macOS without Wine or Mono: run `bun run make:win`. It downloads and verifies a portable NSIS toolset automatically. This does not establish Windows installation acceptance. See [installer behavior and verification](windows-installer.md).
 
 On Windows, compare a downloaded artifact's `Get-FileHash -Algorithm SHA256` with its manifest entry. On Linux, run `sha256sum --check SHA256SUMS` from the artifact directory. `bun run release:manifest <directory>` also supports an alternate artifact directory and refuses empty directories, empty files or linked artifact entries.
 
 - [ ] Install the unsigned installer in a clean Windows 11 VM without Node, Bun or Rust. Launch it through the installed shortcut.
+- [ ] Verify current-user installation at `%LOCALAPPDATA%\Programs\PixelSync` without elevation; verify desktop/Start menu shortcuts, taskbar identity and the Installed apps entry/icon.
+- [ ] Run setup/uninstall while PixelSync or a bridge is running; verify it asks the user to close processes without killing them. Verify silent operation fails safely.
 - [ ] Test the packaged stdio bridge from a path containing spaces. Copy the **entire** unpacked app directory into a folder such as `C:\PixelSync acceptance\PixelSync-win32-x64`, then run `node scripts/smoke-packaged.mjs "C:\PixelSync acceptance\PixelSync-win32-x64\PixelSync.exe"` from a development checkout. This automated step needs Node on the test harness; normal installed use does not.
 - [ ] Confirm the installed executable's `--mcp-stdio` works without a separately installed Node runtime. Close the client/transport and confirm its bridge exits; verify no second GUI opens.
 - [ ] Test app closed, MCP disabled and occupied port diagnostics; restart and confirm saved settings persist.
@@ -52,7 +57,7 @@ On Windows, compare a downloaded artifact's `Get-FileHash -Algorithm SHA256` wit
 - [ ] Verify MCP workspace rules on NTFS, including junction/symlink/hard-link rejection. Use a disposable folder and confirm denied requests leave files intact.
 - [ ] Verify drawing, menu shortcuts, text-field undo and display scales at Windows 100%/150% (and the user's actual scale).
 - [ ] Install a newer version over this build once one exists; verify shortcuts, launch, saved client/workspace settings and project compatibility. Reinstalling the same version does not establish upgrade acceptance.
-- [ ] Uninstall; verify application binaries/shortcuts and bridge processes are removed. Record whether user settings/projects are retained and whether that matches the intended release policy.
+- [ ] Uninstall after closing the app and bridges; verify application binaries, shortcuts and uninstall registration are removed. Verify `%APPDATA%\PixelSync`, project files and external client configuration are retained. Reinstall and verify retained settings load.
 
 ## Native Codex and Claude Code
 

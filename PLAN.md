@@ -16,7 +16,7 @@ Implemented onboarding: **Connect AI client → Connect to Codex / Connect to Cl
 - [x] Persist a generated token, enabled setting, and configurable port in the per-user `mcp-connection.json`; start disabled by default and report port collisions.
 - [x] Implement `PixelSync.exe --mcp-stdio` branching before GUI startup/single-instance locking, forwarding protocol messages to the running app. Also provide the compiled development bridge at `dist/bridge.cjs`.
 - [x] Add five integration tests covering HTTP/compiled-stdio instance identity and tool errors, request validation, port collisions, persistent settings, and disabled/app-closed diagnostics.
-- [x] Add Electron Forge Windows Squirrel/ZIP configuration and local scripts for checks, packaging, packaged executable smoke testing, and unsigned installer artifacts.
+- [x] Add Electron Forge Windows packaging/ZIP configuration and native NSIS setup EXE builds without Wine or Mono, plus local checks, packaged executable smoke testing and unsigned installer artifacts.
 - [x] Add README development/build instructions and MCP setup/troubleshooting documentation. Milestone 3 adds in-app guides and verifies configuration parsing with installed Codex and Claude Code binaries; native tool calls remain acceptance work.
 - [x] Add and verify `bun run package:win`, which supplies `--platform=win32 --arch=x64` automatically and avoids the invalid `x6` architecture argument.
 - [x] Diagnose the initial missing Electron shared libraries and document Arch Linux dependency installation. The libraries are now present; real Electron UI tests pass using Linux's headless Ozone platform.
