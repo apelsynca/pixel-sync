@@ -1,6 +1,6 @@
 # Windows release acceptance
 
-Milestone 6 is in progress. The Bevy sample and repeatable automated checks are implemented. Native Windows 11 installation, client-driven acceptance and graphical Bevy acceptance remain pending. Linux checks and cross-packaging do not establish these results. Release artifacts are unsigned; public distribution and signing are separate decisions.
+Milestone 6 is in progress. The Bevy sample and repeatable automated checks are implemented. The user confirms that the Windows package works and drawing through Codex succeeds (2026-11-14). Detailed installer, file, playback, Claude Code and graphical Bevy checks remain unrecorded. Build, test and release checks run locally. Linux checks and cross-packaging do not establish these results. Release artifacts are unsigned; public distribution and signing are separate decisions.
 
 ## Record each acceptance run
 
@@ -13,11 +13,11 @@ Record the commit or working-tree description, artifact filename and SHA-256, Wi
 | Electron files/workspace/crash-restart recovery | Passed on Linux, 2026-11-14; native dialog results supplied by test automation |
 | Packaged HTTP/stdio editing, files, executable path with spaces and bridge cleanup | Passed on Linux, 2026-11-14; Windows x64 package rebuilt, Windows execution pending |
 | Packaged playback pause/completion and immediate editing at 100%/150% | Passed on refreshed Linux package, 2026-11-14; Windows execution pending |
-| Artifact SHA-256 and source/build manifest generation | Verified on Linux, including checksum verification, repeated generation and paths with spaces; Windows CI configured |
+| Artifact SHA-256 and source/build manifest generation | Verified on Linux, including checksum verification, repeated generation and paths with spaces; run locally |
 | Linux release ZIP from tested runtime | Created 2026-11-14; ZIP integrity and SHA-256 passed; executable/app archive match tested package. Artifacts and manifest under `out/make/` |
-| Windows GUI launch | User verified an earlier foundation build only |
-| Windows CI build/test/package/installer jobs | Configured; observed run pending |
-| Installed Windows editor and both native assistant integrations | Pending |
+| Windows package operation | User confirms the Windows package works, 2026-11-14; detailed scenarios below remain unrecorded |
+| Native Codex drawing | User confirms successful drawing, 2026-11-14; client version not recorded |
+| Installer and native Claude Code integration | Pending |
 | Bevy 0.20.1 metadata/timing/PNG asset loading and viewer compile | See sample commands below; local run recorded in PLAN.md |
 | Bevy graphical appearance and Windows runtime | Pending |
 

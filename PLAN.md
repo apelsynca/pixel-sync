@@ -1,6 +1,6 @@
 # Pixel Art Editor — Implementation Plan
 
-Status: milestone 5 is implemented: editable projects, PNG import/export, sprite sheets/metadata, workspace-bound MCP file tools, and crash recovery. Automated Linux checks cover real Electron file workflows and forced-crash/restart recovery in addition to drawing at two display scales and HTTP/stdio editing. Updated Windows runtime and native assistant-driven acceptance remain unverified. Milestone 6 is in progress: the Bevy 0.20.1 sample, automated export checks and release-acceptance handoff are implemented; graphical Bevy and native Windows release/client acceptance remain pending. The user's earlier Windows launch verification covered the foundation build.
+Status: milestone 5 is implemented: editable projects, PNG import/export, sprite sheets/metadata, workspace-bound MCP file tools, and crash recovery. Automated Linux checks cover real Electron file workflows and forced-crash/restart recovery in addition to drawing at two display scales and HTTP/stdio editing. The user confirms the Windows package works and Codex drawing works (2026-11-14). Detailed installer, file, playback and Claude Code checks remain unrecorded. Milestone 6 is in progress: the Bevy 0.20.1 sample, automated export checks and release-acceptance handoff are implemented; graphical Bevy and detailed release acceptance remain pending. Checks run locally; automated CI is out of scope at the user’s request.
 
 Implemented onboarding: **Connect AI client → Connect to Codex / Connect to Claude Code** configures authenticated local HTTP and provides instructions inside the app. Basic setup requires no executable path, token lookup, environment variables, or manual configuration editing. Each guide includes a first drawing prompt, shared undo/playback instructions, a recent-operation list, and native selection of an MCP file workspace.
 
@@ -9,14 +9,14 @@ Implemented onboarding: **Connect AI client → Connect to Codex / Connect to Cl
 ### Completed
 
 - [x] Scaffold TypeScript, Electron, React, Vite/esbuild, ESLint, and Vitest with pinned dependencies.
-- [x] Switch package management, scripts, documentation, and CI to Bun 1.4.4; commit-ready `bun.lock` replaces `package-lock.json`. Node.js remains required for build/Electron tooling.
+- [x] Switch package management, scripts and documentation to Bun 1.4.4; commit-ready `bun.lock` replaces `package-lock.json`. Node.js remains required for build/Electron tooling.
 - [x] Add the milestone 1 foundation window and MCP settings. Milestone 3 replaces the placeholder with the writable editor.
 - [x] Configure isolated, sandboxed renderer/preload IPC with sender and payload validation, blocked navigation, and disabled renderer Node integration.
 - [x] Implement the official SDK Streamable HTTP endpoint bound to `127.0.0.1`, bearer-token authentication, Host/Origin checks, a 4 MiB request limit, and a read-only `get_status` tool.
 - [x] Persist a generated token, enabled setting, and configurable port in the per-user `mcp-connection.json`; start disabled by default and report port collisions.
 - [x] Implement `PixelSync.exe --mcp-stdio` branching before GUI startup/single-instance locking, forwarding protocol messages to the running app. Also provide the compiled development bridge at `dist/bridge.cjs`.
 - [x] Add five integration tests covering HTTP/compiled-stdio instance identity and tool errors, request validation, port collisions, persistent settings, and disabled/app-closed diagnostics.
-- [x] Add Electron Forge Windows Squirrel/ZIP configuration and Windows CI for checks, packaging, packaged executable smoke testing, and unsigned installer artifacts. CI is configured; its Windows results have not been observed.
+- [x] Add Electron Forge Windows Squirrel/ZIP configuration and local scripts for checks, packaging, packaged executable smoke testing, and unsigned installer artifacts.
 - [x] Add README development/build instructions and MCP setup/troubleshooting documentation. Milestone 3 adds in-app guides and verifies configuration parsing with installed Codex and Claude Code binaries; native tool calls remain acceptance work.
 - [x] Add and verify `bun run package:win`, which supplies `--platform=win32 --arch=x64` automatically and avoids the invalid `x6` architecture argument.
 - [x] Diagnose the initial missing Electron shared libraries and document Arch Linux dependency installation. The libraries are now present; real Electron UI tests pass using Linux's headless Ozone platform.
@@ -28,13 +28,13 @@ Implemented onboarding: **Connect AI client → Connect to Codex / Connect to Cl
 - Linux x64 packaging: passed.
 - `bun run package:win`: passed on Linux and produced `out/PixelSync-win32-x64/PixelSync.exe` with its runtime files. Copy the entire output folder to Windows; the executable is not standalone.
 - The packaged executable smoke script exists at `scripts/smoke-packaged.mjs`; it has not been run successfully on Windows. Building a Windows package does not establish Windows runtime or client compatibility.
-- The user reports successfully running the app on Windows 11. This verifies app launch; installer, automated packaged smoke, and actual desktop MCP-client connections were not reported.
+- The user confirms the Windows package works and drawing through Codex succeeds (2026-11-14). Installer and detailed automated Windows checks were not reported.
 
 ### Outstanding Windows connection/release checks
 
 - [ ] Run the packaged GUI/HTTP/stdio smoke test on Windows, including executable paths containing spaces and bridge cleanup.
 - [ ] Build and install the unsigned Windows installer; verify it runs on Windows 11 without a separately installed Node.js runtime.
-- [ ] Connect at least one actual local desktop MCP client to the installed app, and record tested client configuration.
+- [x] User confirms successful drawing through Codex with the Windows package. Client version and detailed configuration were not recorded.
 - [ ] Verify packaged app-closed, MCP-disabled, and port-collision behavior on Windows.
 - [x] Proceed to milestone 2 at the user's direction following their successful Windows 11 launch.
 
@@ -61,8 +61,8 @@ The engine and command service now drive both the manual editor and MCP editing.
 - [x] Verify generated configuration with installed codex-cli 0.168.0 and Claude Code 2.1.325 using isolated client homes. This verifies their config parsers, not assistant-driven tool calls.
 - [x] Pass `bun run check`: TypeScript, ESLint, production build, and 36 engine/application/configuration/transport tests.
 - [x] Pass real Electron UI smoke tests at 100% and 150% display scaling, exercising drawing, history, cancellation, layers, timing, clips, playback, both connection buttons, authenticated named-route status calls, and unsaved replacement/close handling. SDK test clients supply the status calls.
-- [x] Add Windows CI execution of the editor smoke script and update packaged status assertions for the new document metadata.
-- [x] Package the Linux app and pass packaged HTTP/stdio plus editor smoke checks at both display scales. Rebuild the Windows x64 folder with milestone 3 at `out/PixelSync-win32-x64/`; Windows execution of this updated build remains unverified.
+- [x] Add the local editor smoke script and update packaged status assertions for the new document metadata.
+- [x] Package the Linux app and pass packaged HTTP/stdio plus editor smoke checks at both display scales. Rebuild the Windows x64 folder with milestone 3 at `out/PixelSync-win32-x64/`; The user subsequently confirms the Windows package works; display-scale-specific checks remain unrecorded.
 - [ ] Verify the updated manual editor on Windows 11 at actual Windows display scales.
 - [ ] Follow the in-app guides in native Codex and Claude Code, call `get_status`, restart both clients/app, and verify persistence. Do not infer these results from SDK tests or CLI configuration parsing.
 
@@ -93,7 +93,7 @@ MCP save/open/import/export tools are now implemented with persistence/workspace
 - [x] Add debounced, atomic recovery snapshots; offer recovery in-app after abnormal exit, preserve pending/corrupt snapshots until an explicit choice, restore as unsaved artwork without reusing an old path, and clear snapshots after successful save or normal closing. Report recovery write failures in the UI.
 - [x] Pass 67 tests, including animated project/PNG round trips, exact sprite-sheet cells/clip metadata, async revision consistency, failed saves/exports, overwrite races, bounded decoding, workspace escapes/links, staged cancellation, recovery, and four actual HTTP/compiled-stdio file-tool tests.
 - [x] Pass real Electron file workflow tests: native Save/Open/import/export, Save shortcut, explicit appended-extension overwrite, UI workspace selection and MCP save, forced process kill/restart, recovery, close Cancel/Save, and normal-close cleanup. Existing 100%/150% drawing/zoom/MCP smoke checks remain covered.
-- [x] Add the file/recovery smoke script to Windows CI and document native format, sprite metadata, path rules, error categories and recovery behavior in `docs/project-format.md`.
+- [x] Add the local file/recovery smoke script and document native format, sprite metadata, path rules, error categories and recovery behavior in `docs/project-format.md`.
 - [x] Pass the expanded packaged Linux HTTP/executable-stdio save/open/export smoke and packaged file/crash-recovery UI checks. Refresh the Windows x64 folder at `out/PixelSync-win32-x64/`.
 - [ ] Verify native Windows 11 file dialogs, NTFS/junction behavior, installation, and native assistant file calls in the updated packaged application. Linux and mocked-dialog automated results do not establish these checks.
 
@@ -102,26 +102,26 @@ MCP save/open/import/export tools are now implemented with persistence/workspace
 - [x] Add a standalone Bevy 0.20.1 sample with locked dependencies: static PNG and regular-grid animation side by side, nearest-neighbor sampling, integer scaling and a transparency checkerboard. Load version-1 JSON metadata; preserve clip order, individual durations, looping/non-looping behavior, residual elapsed time and unused-cell exclusion. Provide clip selection, pause and restart.
 - [x] Include editable demo artwork plus reproducible static/sheet exports generated through the production project loader/compositor/exporter. Cover transparent and translucent pixels, three unequal durations, reordered clips and an unused atlas cell.
 - [x] Pass four Rust tests on Linux with Rust 1.99.1 / Bevy 0.20.1: timing/boundaries/large delays, non-looping/restart, metadata rejection and a headless Bevy asset-pipeline smoke loading real exported PNGs and advancing Sprite atlas indices. Type-check the graphical viewer with `bun run check:bevy`; pass Rust formatting.
-- [x] Add `fixtures:bevy`, `smoke:bevy`, `check:bevy` and independent Linux/Windows Bevy CI for deterministic fixtures, formatting, tests and viewer compilation. Exclude source examples/Rust build output from Electron packages and lint traversal.
-- [x] Extend the packaged smoke to copy the full runtime into a temporary executable path containing spaces and assert that the stdio bridge process exits after transport close. Pass this on Linux; rebuild Linux and Windows x64 packages and verify both exclude Rust sources/build output. Native Windows execution remains pending.
+- [x] Add `fixtures:bevy`, `smoke:bevy`, `check:bevy` for local deterministic fixtures, tests and viewer compilation; provide a local Rust formatting check. Exclude source examples/Rust build output from Electron packages and lint traversal.
+- [x] Extend the packaged smoke to copy the full runtime into a temporary executable path containing spaces and assert that the stdio bridge process exits after transport close. Pass this on Linux; rebuild Linux and Windows x64 packages and verify both exclude Rust sources/build output. The user confirms general Windows package operation; this specific smoke scenario remains unrecorded.
 - [x] Add [sample instructions](examples/bevy/README.md) and a concrete [release acceptance checklist](docs/release-acceptance.md) covering artifact checksums, clean installation, paths with spaces, bridge cleanup, upgrade/uninstall, actual client calls, NTFS, display scales, latency and graphical Bevy comparison.
 - [x] Reverify existing native-menu work with `bun run check` (67 tests), editor smoke at 100%/150%, and file/crash-recovery smoke on Linux. Both UI smoke scripts also pass against the refreshed Linux package.
 - [ ] Run the graphical Bevy sample on Windows 11 with exports created through native assistant calls and manual editing. Headless asset/timing tests and viewer compilation do not verify rendered appearance.
-- [ ] Complete installer/upgrade/uninstall, NTFS and native Codex/Claude Code acceptance on Windows 11; record versions, machine and artifact checksums. Windows CI results remain unobserved.
+- [ ] Complete installer/upgrade/uninstall, NTFS and native Codex/Claude Code acceptance on Windows 11; record versions, machine and artifact checksums. General Windows package operation and Codex drawing are confirmed by the user; the detailed checks remain unrecorded.
 
 ### Playback pause/editing fix — 2026-11-14
 
 - [x] Reproduce the reported Space-pause bug in a real Electron UI test with a controlled animation clock: frame 2 remains visible while frame 1 stays selected and drawing is blocked.
 - [x] Select the displayed frame when Space/Pause stops playback or a non-looping clip finishes, and remove the obsolete Return to edit frame guard. Preserve shared document/history state and pause/resume elapsed time. Mutations during playback still retain the selected edit frame.
-- [x] Add `bun run smoke:playback` and Windows CI coverage: deterministic Space/button/completion checks at 100%/150%, asserting no revision change on stop and a manual stroke changes only the visible frame without clicking its thumbnail.
+- [x] Add `bun run smoke:playback` with local coverage: deterministic Space/button/completion checks at 100%/150%, asserting no revision change on stop and a manual stroke changes only the visible frame without clicking its thumbnail.
 
 ### Release artifact handoff — 2026-11-14
 
-- [x] Add `make:verified` to make release artifacts from the already-tested packaged runtime without repackaging. Windows CI now runs packaged drawing, playback and file/recovery checks before making artifacts.
-- [x] Add `release:manifest` and CI generation of artifact SHA-256 sums and a JSON manifest with sizes, source commit/dirty flag, lockfile hash and build environment. Verify exact hashes/bytes, paths containing spaces, standard checksum validation, repeat generation, empty-directory rejection and linked-artifact rejection on Linux.
+- [x] Add `make:verified` to make release artifacts from the already-tested packaged runtime without repackaging. Run packaged drawing, playback and file/recovery checks locally before making artifacts.
+- [x] Add local `release:manifest` generation of artifact SHA-256 sums and a JSON manifest with sizes, source commit/dirty flag, lockfile hash and build environment. Verify exact hashes/bytes, paths containing spaces, standard checksum validation, repeat generation, empty-directory rejection and linked-artifact rejection on Linux.
 - [x] Catch a stale Linux package with the new playback smoke check; rebuild Linux and Windows x64 packages. Pass all 67 tests, packaged Linux drawing/playback at 100%/150%, packaged file/crash recovery, HTTP/stdio editing/files, executable paths with spaces and bridge cleanup.
 - [x] Produce `out/make/zip/linux/x64/PixelSync-linux-x64-0.1.0.zip` from the tested Linux runtime, generate its manifest/checksum, verify the ZIP CRCs and SHA-256, and confirm its executable/app archive match the tested package. The host lacked `zip`; use an extracted Arch package in a temporary tool directory without changing system packages. Document the Linux prerequisite.
-- [ ] Observe Windows CI artifact generation and complete the native Windows/client/graphical acceptance recorded above.
+- [ ] Generate Windows artifacts locally and complete the detailed release/graphical acceptance recorded above.
 
 ## 1. Goal and decisions
 
@@ -332,7 +332,7 @@ Do not require resource subscriptions, prompts, or custom MCP extensions for fir
 
 - Produce an x64 Windows installer and verify installation, upgrade/uninstall behavior, stdio launch paths containing spaces, and cleanup of bridge processes/connections.
 - Run the end-to-end acceptance scenario below on Windows 11, ideally a clean VM without development tools.
-- Document development commands, client setup, tool usage, file format, limits, and troubleshooting. Verify the in-app Codex and Claude Code instructions against recorded client versions and the installed Windows app; keep external setup docs consistent. Configure Windows CI for build/tests/package smoke checks where available.
+- Document development commands, client setup, tool usage, file format, limits, and troubleshooting. Verify the in-app Codex and Claude Code instructions against recorded client versions and the installed Windows app; keep external setup docs consistent. Keep build/tests/package smoke checks as local commands.
 - Document and smoke-test static PNG and animated sprite-sheet workflows in a small Bevy sample, including metadata loading, clip playback, and nearest-neighbor sampling; record the tested Bevy version.
 - Exit criterion: an installable release artifact and repeatable client setup instructions. Public distribution/signing is a separate decision; record the artifact's signing status.
 
