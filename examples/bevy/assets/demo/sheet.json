@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "image": "sheet.png",
+  "imageWidth": 32,
+  "imageHeight": 32,
+  "frameWidth": 16,
+  "frameHeight": 16,
+  "frameCount": 3,
+  "columns": 2,
+  "rows": 2,
+  "padding": 0,
+  "offset": {
+    "x": 0,
+    "y": 0
+  },
+  "units": {
+    "dimensions": "pixels",
+    "duration": "milliseconds"
+  },
+  "documentId": "pixel-sync-bevy-demo",
+  "revision": 0,
+  "frames": [
+    {
+      "id": "frame-0",
+      "index": 0,
+      "duration": 80
+    },
+    {
+      "id": "frame-1",
+      "index": 1,
+      "duration": 120
+    },
+    {
+      "id": "frame-2",
+      "index": 2,
+      "duration": 250
+    }
+  ],
+  "clips": [
+    {
+      "name": "idle",
+      "indices": [
+        0,
+        1
+      ],
+      "loop": true
+    },
+    {
+      "name": "walk",
+      "indices": [
+        2,
+        0,
+        1
+      ],
+      "loop": true
+    },
+    {
+      "name": "once",
+      "indices": [
+        1,
+        2
+      ],
+      "loop": false
+    }
+  ]
+}

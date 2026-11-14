@@ -32,6 +32,14 @@ for (const scale of [1, 1.5]) {
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     page.setDefaultTimeout(8000);
     await page.getByRole('button', { name: 'Connect AI client' }).waitFor();
+async function nativeMenu(id) {
+  const deadline = Date.now() + 8000;
+  while (!await application.evaluate(({ Menu }, id) => Menu.getApplicationMenu()?.getMenuItemById(id)?.enabled ?? false, id)) {
+    if (Date.now() > deadline) throw new Error(`Menu item ${id} did not become enabled`);
+    await new Promise(resolve => setTimeout(resolve, 40));
+  }
+  await application.evaluate(({ Menu }, id) => { const item = Menu.getApplicationMenu().getMenuItemById(id); item.click(); }, id);
+}
     const document = () => page.evaluate(() => window.editor.getDocument());
     const waitRevision = async revision => page.waitForFunction(async expected => (await window.editor.getDocument())?.revision === expected, revision);
     const snapshot = () => page.evaluate(async () => { const d = await window.editor.getDocument(); const frame = await window.editor.getFrame({ documentId: d.documentId, expectedRevision: d.revision, frameId: d.frames[0].id, allLayers: true }); return frame.layers.map(layer => ({ ...layer, pixels: [...layer.pixels] })); });
@@ -71,12 +79,19 @@ for (const scale of [1, 1.5]) {
     await page.waitForFunction(() => document.querySelector('.zoom-value')?.textContent === '100%');
     assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomFactor()), 1);
     assert.equal((await document()).revision, 0);
+    assert.equal(await page.locator('.document-toolbar').getByRole('button', { name: /Save|New canvas|Undo|Redo/ }).count(), 0);
+    const menuState = await application.evaluate(({ Menu }) => {
+      const menu = Menu.getApplicationMenu();
+      return { file: menu.items.find(item => item.label === 'File').submenu.items.map(item => item.id), undo: menu.getMenuItemById('undo').enabled, redo: menu.getMenuItemById('redo').enabled, saveShortcut: menu.getMenuItemById('save').accelerator };
+    });
+    assert.ok(['new', 'open', 'save', 'save-as', 'import', 'export-png', 'export-sheet'].every(id => menuState.file.includes(id)));
+    assert.equal(menuState.undo, false); assert.equal(menuState.redo, false); assert.equal(menuState.saveShortcut, 'CmdOrCtrl+S');
     await page.getByRole('button', { name: 'Fit', exact: true }).click();
     await stroke(2, 3, 10, 3); await waitRevision(1);
     assert.deepEqual(await pixel(2, 3), [233, 196, 106, 255]); assert.deepEqual(await pixel(10, 3), [233, 196, 106, 255]);
     assert.equal((await document()).history.undo, 1);
-    await page.getByRole('button', { name: '↶ Undo', exact: true }).click(); await waitRevision(2); assert.deepEqual(await pixel(2, 3), [0, 0, 0, 0]);
-    await page.getByRole('button', { name: '↷ Redo', exact: true }).click(); await waitRevision(3);
+    await nativeMenu('undo'); await waitRevision(2); assert.deepEqual(await pixel(2, 3), [0, 0, 0, 0]);
+    await nativeMenu('redo'); await waitRevision(3);
     const p = await point(5, 7); await page.mouse.move(p.x, p.y); await page.mouse.down(); await page.keyboard.press('Escape'); await page.mouse.up();
     assert.equal((await document()).revision, 3); assert.deepEqual(await pixel(5, 7), [0, 0, 0, 0]);
     await page.getByRole('button', { name: 'Rectangle', exact: true }).click(); await page.getByLabel('Filled rectangle').check();
@@ -95,9 +110,10 @@ for (const scale of [1, 1.5]) {
     assert.deepEqual((await document()).clips.map(clip => [clip.name, clip.frameIds.length, clip.loop]), [['walk', 2, false]]);
     await page.getByRole('button', { name: 'Frame 1', exact: true }).click();
     await page.getByRole('button', { name: '▷ Play', exact: true }).click();
-    await page.getByRole('button', { name: 'Return to edit frame', exact: true }).waitFor();
+    await page.getByRole('button', { name: '▷ Play', exact: true }).waitFor();
+    assert.ok((await page.locator('footer').innerText()).includes('Frame 2 / 2'));
     assert.equal((await document()).revision, 11);
-    await page.getByRole('button', { name: 'Return to edit frame', exact: true }).click();
+    await page.getByRole('button', { name: 'Frame 1', exact: true }).click();
     await page.getByRole('button', { name: '◉ Onion skin', exact: true }).click();
     await page.getByRole('button', { name: '▦ Grid', exact: true }).click();
     await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
@@ -150,7 +166,7 @@ for (const scale of [1, 1.5]) {
     assert.ok(visiblePixels[3] > 0, 'Onion skin should remain a view overlay, excluded from the PNG');
     const sheet = await remote('get_animation_preview', { documentId: beforeMcp.documentId, frameIds: [firstFrame, 'mcp-second'], columns: 2, scale: 2 });
     assert.deepEqual([sheet.structuredContent.width, sheet.structuredContent.height], [128, 64]);
-    await page.getByRole('button', { name: '↶ Undo', exact: true }).click(); await waitRevision(13);
+    await nativeMenu('undo'); await waitRevision(13);
     assert.equal((await document()).layers.some(layer => layer.id === 'mcp-layer'), false);
     await remote('redo', await currentGuard()); await waitRevision(14);
     assert.equal((await document()).clips.some(clip => clip.name === 'mcp-demo'), true);
@@ -158,7 +174,7 @@ for (const scale of [1, 1.5]) {
     const read = await remote('get_pixels', { documentId: beforeMcp.documentId, frameId: firstFrame, layerId: beforeMcp.layers[1].id, x: 6, y: 6, width: 1, height: 1 });
     assert.deepEqual([...Buffer.from(read.structuredContent.data, 'base64')], [233, 196, 106, 255]);
     await remote('undo', await currentGuard()); await waitRevision(16); assert.deepEqual(await pixel(6, 6, 1), [0, 0, 0, 0]);
-    await page.getByRole('button', { name: '↷ Redo', exact: true }).click(); await waitRevision(17);
+    await nativeMenu('redo'); await waitRevision(17);
     await page.getByLabel('Playback clip', { exact: true }).selectOption('mcp-demo');
     await page.getByRole('button', { name: '▷ Play', exact: true }).click();
     await page.getByRole('button', { name: 'Ⅱ Pause', exact: true }).waitFor();
@@ -175,7 +191,7 @@ for (const scale of [1, 1.5]) {
     // Verify the native unsaved-replacement guard without interacting with an OS dialog.
     await application.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 2, checkboxChecked: false }); });
     const identity = (await document()).documentId;
-    await page.getByRole('button', { name: '＋ New canvas', exact: true }).click();
+    await nativeMenu('new');
     await page.getByRole('button', { name: 'Create canvas', exact: true }).click();
     await page.getByRole('dialog', { name: 'New canvas' }).waitFor({ state: 'hidden' });
     assert.equal((await document()).documentId, identity);

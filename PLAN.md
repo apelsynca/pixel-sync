@@ -1,6 +1,6 @@
 # Pixel Art Editor — Implementation Plan
 
-Status: milestone 5 is implemented: editable projects, PNG import/export, sprite sheets/metadata, workspace-bound MCP file tools, and crash recovery. Automated Linux checks cover real Electron file workflows and forced-crash/restart recovery in addition to drawing at two display scales and HTTP/stdio editing. Updated Windows runtime and native assistant-driven acceptance remain unverified. Milestone 6 (release acceptance and Bevy sample) has not started. The user's earlier Windows launch verification covered the foundation build.
+Status: milestone 5 is implemented: editable projects, PNG import/export, sprite sheets/metadata, workspace-bound MCP file tools, and crash recovery. Automated Linux checks cover real Electron file workflows and forced-crash/restart recovery in addition to drawing at two display scales and HTTP/stdio editing. Updated Windows runtime and native assistant-driven acceptance remain unverified. Milestone 6 is in progress: the Bevy 0.20.1 sample, automated export checks and release-acceptance handoff are implemented; graphical Bevy and native Windows release/client acceptance remain pending. The user's earlier Windows launch verification covered the foundation build.
 
 Implemented onboarding: **Connect AI client → Connect to Codex / Connect to Claude Code** configures authenticated local HTTP and provides instructions inside the app. Basic setup requires no executable path, token lookup, environment variables, or manual configuration editing. Each guide includes a first drawing prompt, shared undo/playback instructions, a recent-operation list, and native selection of an MCP file workspace.
 
@@ -55,7 +55,7 @@ The engine and command service now drive both the manual editor and MCP editing.
 - [x] Connect the authoritative command service to validated, main-frame-only IPC; publish document revisions and bounded frame snapshots. Keep the renderer sandboxed with Node integration disabled and web permissions denied.
 - [x] Add pencil, eraser, fill, line, outlined/filled rectangle, composite color picker, RGBA/alpha controls, editable swatches, and shared undo/redo. Interpolate pointer movement and group a gesture into one commit; cancellation/blur releases its reservation.
 - [x] Add layer selection, naming, order, visibility, additions/deletions, integer zoom, fit, pan, pixel grid, coordinates, tool shortcuts, and unsaved replacement/close prompts. Project saving is still milestone 5.
-- [x] Add frame thumbnails, selection, add/duplicate/delete/reorder, duration editing, previous/next navigation, clip creation/editing/order/looping, elapsed-time playback, and paused onion skin. Playback retains the selected edit frame and non-looping clips stop on their final preview frame.
+- [x] Add frame thumbnails, selection, add/duplicate/delete/reorder, duration editing, previous/next navigation, clip creation/editing/order/looping, elapsed-time playback, and paused onion skin. Playback initially retained the selected edit frame; the pause/editing fix below now selects the visible frame when playback stops.
 - [x] Add separate Codex and Claude Code cards with Connect/Update, in-app instructions, installation-guide links, a copyable first prompt, optional populated private configuration, server availability, and actual status-call timestamps. Write persistent authenticated HTTP configuration without a shell or a token environment variable.
 - [x] Preserve unrelated client configuration, back up existing nonempty files, atomically replace configuration, detect concurrent changes, and leave invalid/unsupported layouts untouched. Keep credentials out of routine UI, IPC results, parser diagnostics, and logs.
 - [x] Verify generated configuration with installed codex-cli 0.168.0 and Claude Code 2.1.325 using isolated client homes. This verifies their config parsers, not assistant-driven tool calls.
@@ -96,6 +96,32 @@ MCP save/open/import/export tools are now implemented with persistence/workspace
 - [x] Add the file/recovery smoke script to Windows CI and document native format, sprite metadata, path rules, error categories and recovery behavior in `docs/project-format.md`.
 - [x] Pass the expanded packaged Linux HTTP/executable-stdio save/open/export smoke and packaged file/crash-recovery UI checks. Refresh the Windows x64 folder at `out/PixelSync-win32-x64/`.
 - [ ] Verify native Windows 11 file dialogs, NTFS/junction behavior, installation, and native assistant file calls in the updated packaged application. Linux and mocked-dialog automated results do not establish these checks.
+
+### Milestone 6 — in progress 2026-11-14; Windows and graphical acceptance pending
+
+- [x] Add a standalone Bevy 0.20.1 sample with locked dependencies: static PNG and regular-grid animation side by side, nearest-neighbor sampling, integer scaling and a transparency checkerboard. Load version-1 JSON metadata; preserve clip order, individual durations, looping/non-looping behavior, residual elapsed time and unused-cell exclusion. Provide clip selection, pause and restart.
+- [x] Include editable demo artwork plus reproducible static/sheet exports generated through the production project loader/compositor/exporter. Cover transparent and translucent pixels, three unequal durations, reordered clips and an unused atlas cell.
+- [x] Pass four Rust tests on Linux with Rust 1.99.1 / Bevy 0.20.1: timing/boundaries/large delays, non-looping/restart, metadata rejection and a headless Bevy asset-pipeline smoke loading real exported PNGs and advancing Sprite atlas indices. Type-check the graphical viewer with `bun run check:bevy`; pass Rust formatting.
+- [x] Add `fixtures:bevy`, `smoke:bevy`, `check:bevy` and independent Linux/Windows Bevy CI for deterministic fixtures, formatting, tests and viewer compilation. Exclude source examples/Rust build output from Electron packages and lint traversal.
+- [x] Extend the packaged smoke to copy the full runtime into a temporary executable path containing spaces and assert that the stdio bridge process exits after transport close. Pass this on Linux; rebuild Linux and Windows x64 packages and verify both exclude Rust sources/build output. Native Windows execution remains pending.
+- [x] Add [sample instructions](examples/bevy/README.md) and a concrete [release acceptance checklist](docs/release-acceptance.md) covering artifact checksums, clean installation, paths with spaces, bridge cleanup, upgrade/uninstall, actual client calls, NTFS, display scales, latency and graphical Bevy comparison.
+- [x] Reverify existing native-menu work with `bun run check` (67 tests), editor smoke at 100%/150%, and file/crash-recovery smoke on Linux. Both UI smoke scripts also pass against the refreshed Linux package.
+- [ ] Run the graphical Bevy sample on Windows 11 with exports created through native assistant calls and manual editing. Headless asset/timing tests and viewer compilation do not verify rendered appearance.
+- [ ] Complete installer/upgrade/uninstall, NTFS and native Codex/Claude Code acceptance on Windows 11; record versions, machine and artifact checksums. Windows CI results remain unobserved.
+
+### Playback pause/editing fix — 2026-11-14
+
+- [x] Reproduce the reported Space-pause bug in a real Electron UI test with a controlled animation clock: frame 2 remains visible while frame 1 stays selected and drawing is blocked.
+- [x] Select the displayed frame when Space/Pause stops playback or a non-looping clip finishes, and remove the obsolete Return to edit frame guard. Preserve shared document/history state and pause/resume elapsed time. Mutations during playback still retain the selected edit frame.
+- [x] Add `bun run smoke:playback` and Windows CI coverage: deterministic Space/button/completion checks at 100%/150%, asserting no revision change on stop and a manual stroke changes only the visible frame without clicking its thumbnail.
+
+### Release artifact handoff — 2026-11-14
+
+- [x] Add `make:verified` to make release artifacts from the already-tested packaged runtime without repackaging. Windows CI now runs packaged drawing, playback and file/recovery checks before making artifacts.
+- [x] Add `release:manifest` and CI generation of artifact SHA-256 sums and a JSON manifest with sizes, source commit/dirty flag, lockfile hash and build environment. Verify exact hashes/bytes, paths containing spaces, standard checksum validation, repeat generation, empty-directory rejection and linked-artifact rejection on Linux.
+- [x] Catch a stale Linux package with the new playback smoke check; rebuild Linux and Windows x64 packages. Pass all 67 tests, packaged Linux drawing/playback at 100%/150%, packaged file/crash recovery, HTTP/stdio editing/files, executable paths with spaces and bridge cleanup.
+- [x] Produce `out/make/zip/linux/x64/PixelSync-linux-x64-0.1.0.zip` from the tested Linux runtime, generate its manifest/checksum, verify the ZIP CRCs and SHA-256, and confirm its executable/app archive match the tested package. The host lacked `zip`; use an extracted Arch package in a temporary tool directory without changing system packages. Document the Linux prerequisite.
+- [ ] Observe Windows CI artifact generation and complete the native Windows/client/graphical acceptance recorded above.
 
 ## 1. Goal and decisions
 
@@ -356,7 +382,7 @@ Animation is part of the initial delivery and is implemented across milestones 2
 
 - Provide frame thumbnails, selection, previous/next navigation, duration editing, and clip selection. Selecting no clip previews the timeline order with looping enabled.
 - Playback uses elapsed time and accumulated per-frame durations, including residual time after frame changes. Delayed render callbacks must not slow the intended animation clock. Non-looping clips stop on their final frame.
-- Play/pause, playback position, frame selection, and onion-skin settings do not modify the document revision or history. A mutation pauses playback and preserves the manually selected edit frame; MCP changes do not retarget it unless that frame was deleted, in which case select the nearest surviving timeline frame.
+- Play/pause, playback position, frame selection, and onion-skin settings do not modify the document revision or history. Explicit pause (Space/button) and natural non-looping completion select the visible frame for immediate editing and preserve the elapsed playback clock. A mutation pauses playback and preserves the manually selected edit frame; MCP changes do not retarget it unless that frame was deleted, in which case select the nearest surviving timeline frame.
 - Onion skin shows the adjacent timeline frames at reduced opacity only while paused. It is a view overlay and never appears in saved pixels, MCP previews, or exports.
 
 ### Sprite-sheet and metadata export

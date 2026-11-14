@@ -13,7 +13,11 @@ export interface EditorStatus {
   document: DocumentInfo | null;
   mcp: { enabled: boolean; endpoint: string | null; error: string | null };
 }
+export type EditorMenuCommand = 'new' | 'open' | 'save' | 'save-as' | 'import' | 'export-png' | 'export-sheet' | 'undo' | 'redo';
+export interface EditorMenuState { enabled: boolean; canUndo: boolean; canRedo: boolean }
 export interface EditorApi {
+  onMenuCommand(listener: (command: EditorMenuCommand) => void): () => void;
+  setMenuState(state: EditorMenuState): Promise<void>;
   getStatus(): Promise<EditorStatus>;
   setMcpEnabled(enabled: boolean): Promise<EditorStatus>;
   getDocument(): Promise<DocumentInfo | null>;

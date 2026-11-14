@@ -1,4 +1,4 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
-export default tseslint.config({ ignores: ['node_modules/**', 'dist/**', 'out/**'] }, js.configs.recommended, ...tseslint.configs.recommended, { languageOptions: { globals: { ...globals.node, ...globals.browser } } });
+export default tseslint.config({ ignores: ['node_modules/**', 'dist/**', 'out/**', 'examples/bevy/target/**'] }, js.configs.recommended, ...tseslint.configs.recommended, { languageOptions: { globals: { ...globals.node, ...globals.browser } } });

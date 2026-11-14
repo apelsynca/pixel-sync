@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve, join } from 'node:path';
+import { basename, dirname, resolve, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -10,8 +10,15 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { createServer } from 'node:net';
 import { once } from 'node:events';
 
-const executable = resolve(process.argv[2] ?? `out/PixelSync-${process.platform}-${process.arch}/${process.platform === 'win32' ? 'PixelSync.exe' : 'PixelSync'}`);
+const sourceExecutable = resolve(process.argv[2] ?? `out/PixelSync-${process.platform}-${process.arch}/${process.platform === 'win32' ? 'PixelSync.exe' : 'PixelSync'}`);
 const directory = await mkdtemp(join(tmpdir(), 'PixelSync smoke '));
+// Exercise GUI and stdio launch from a complete runtime folder with spaces by default.
+let executable = sourceExecutable;
+if (!process.argv[2]) {
+  const runtimeDirectory = join(directory, 'Application with spaces');
+  await cp(dirname(sourceExecutable), runtimeDirectory, { recursive: true });
+  executable = join(runtimeDirectory, basename(sourceExecutable));
+}
 // Reserve an available test port before starting Electron.
 const reservation = createServer();
 reservation.listen(0, '127.0.0.1');
@@ -74,7 +81,17 @@ try {
   assert.equal(JSON.parse(await readFile(join(workspace, 'smoke-sheet', 'sheet.json'), 'utf8')).revision, 3);
   const reopened = await bridge.callTool({ name: 'open_project', arguments: { path: 'smoke.pixel.json', current: { documentId: document.documentId, expectedRevision: 3 } } });
   assert.equal(reopened.structuredContent.document.dirty, false); assert.notEqual(reopened.structuredContent.document.documentId, document.documentId);
-  console.log('Packaged HTTP and executable stdio share edits, PNG previews, history, project save/open, and sprite-sheet export in one live app.');
+  const bridgePid = transport.pid;
+  assert.ok(bridgePid, 'The executable stdio transport has a child process');
+  await bridge.close();
+  const cleanupDeadline = Date.now() + 5000;
+  while (true) {
+    try { process.kill(bridgePid, 0); }
+    catch (error) { if (error.code === 'ESRCH') break; throw error; }
+    assert.ok(Date.now() < cleanupDeadline, 'The executable stdio bridge exits after transport close');
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  console.log(`Packaged HTTP and executable stdio share edits, PNG previews, history, project save/open, and sprite-sheet export in one live app; bridge cleanup passed${executable.includes(' ') ? ' from an executable path containing spaces' : ''}.`);
 } finally {
   await Promise.allSettled([bridge.close(), direct.close()]);
   if (application.exitCode === null) {

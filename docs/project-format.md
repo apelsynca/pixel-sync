@@ -61,7 +61,7 @@ The JSON sidecar contains:
 | `frames` | Timeline-ordered `{ id, index, duration }` entries; index is the atlas index |
 | `clips` | `{ name, indices, loop }` entries; ordered atlas indices may differ from timeline order |
 
-Consumers must use `frameCount`/clip indices rather than treating unused grid cells as animation frames. Durations may differ per frame. A Bevy example that loads this sidecar and advances clips with elapsed-time accumulation is part of milestone 6; Bevy does not automatically read this editor-specific JSON format.
+Consumers must use `frameCount`/clip indices rather than treating unused grid cells as animation frames. Durations may differ per frame. The [Bevy 0.20.1 sample](../examples/bevy/README.md) loads this sidecar and advances clips with elapsed-time accumulation; Bevy does not automatically read this editor-specific JSON format.
 
 ## Crash recovery
 

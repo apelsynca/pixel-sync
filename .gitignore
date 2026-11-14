@@ -3,3 +3,4 @@ dist/
 out/
 coverage/
 *.log
+examples/bevy/target/

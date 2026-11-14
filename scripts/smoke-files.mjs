@@ -29,7 +29,15 @@ async function launch() {
 const document = () => page.evaluate(() => window.editor.getDocument());
 const guard = document => ({ documentId: document.documentId, expectedRevision: document.revision });
 async function editPixel(x, y, color) { await page.evaluate(async ({ x, y, color }) => { const d = await window.editor.getDocument(); await window.editor.edit({ documentId: d.documentId, expectedRevision: d.revision, operations: [{ type: 'set_pixels', frameId: d.frames[0].id, layerId: d.layers[0].id, pixels: [{ x, y, color }] }] }); }, { x, y, color }); }
-async function fileMenu(name) { await page.locator('.file-menu summary').click(); await page.getByRole('button', { name, exact: true }).click(); }
+async function nativeMenu(id) {
+  const deadline = Date.now() + 8000;
+  while (!await application.evaluate(({ Menu }, id) => Menu.getApplicationMenu()?.getMenuItemById(id)?.enabled ?? false, id)) {
+    if (Date.now() > deadline) throw new Error(`Menu item ${id} did not become enabled`);
+    await new Promise(resolve => setTimeout(resolve, 40));
+  }
+  await application.evaluate(({ Menu }, id) => { const item = Menu.getApplicationMenu().getMenuItemById(id); item.click(); }, id);
+}
+async function fileMenu(name) { await nativeMenu(({ 'Open project…': 'open', 'Export frame PNG…': 'export-png', 'Export sprite sheet…': 'export-sheet', 'Import PNG…': 'import' })[name]); }
 async function saveDialog(path) { await application.evaluate(({ dialog }, path) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: path }); }, path); }
 async function openDialog(path) { await application.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] }); }, path); }
 async function answer(response) { await application.evaluate(({ dialog }, response) => { dialog.showMessageBox = async () => ({ response, checkboxChecked: false }); }, response); }
@@ -42,18 +50,18 @@ try {
   await page.evaluate(async guard => { const d = await window.editor.getDocument(); await window.editor.edit({ ...guard, operations: [{ type: 'duplicate_frame', frameId: d.frames[0].id, id: 'second' }, { type: 'set_frame_duration', frameId: 'second', duration: 240 }, { type: 'set_clip', name: 'walk', frameIds: ['second', d.frames[0].id], loop: false }] }); }, guard(d));
   const projectPath = join(native, 'hero.pixel.json');
   await writeFile(projectPath, 'previous project'); await answer(1); await saveDialog(join(native, 'hero'));
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await waitUntil(async () => await page.getByRole('button', { name: 'Save', exact: true }).isEnabled());
+  await nativeMenu('save');
+  await waitUntil(async () => await application.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('save').enabled));
   assert.equal(await readFile(projectPath, 'utf8'), 'previous project'); assert.equal((await document()).dirty, true);
   await answer(0);
-  await saveDialog(join(native, 'hero')); await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await saveDialog(join(native, 'hero')); await nativeMenu('save');
   await waitUntil(async () => (await document()).dirty === false); assert.deepEqual(await projectPixel(projectPath, 1, 1), [255, 0, 0, 128]);
   await editPixel(1, 1, '#0000FFFF');
   await application.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => { throw new Error('Save should reuse the associated project path'); }; });
-  await waitUntil(async () => await page.getByRole('button', { name: 'Save', exact: true }).isEnabled());
+  await waitUntil(async () => await application.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('save').enabled));
   await page.keyboard.press('Control+s'); await waitUntil(async () => (await document()).dirty === false); assert.deepEqual(await projectPixel(projectPath, 1, 1), [0, 0, 255, 255]);
   const saved = JSON.parse(await readFile(projectPath, 'utf8'));
-  await page.getByRole('button', { name: '＋ New canvas', exact: true }).click();
+  await nativeMenu('new');
   await page.getByRole('dialog', { name: 'New canvas' }).getByLabel('Width', { exact: true }).fill('8');
   await page.getByRole('dialog', { name: 'New canvas' }).getByLabel('Height', { exact: true }).fill('8');
   await page.getByRole('button', { name: 'Create canvas', exact: true }).click(); await waitUntil(async () => (await document()).width === 8);
@@ -83,7 +91,7 @@ try {
   await launch(); await page.getByRole('dialog', { name: 'Recover artwork', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Recover artwork', exact: true }).click(); await page.getByRole('dialog', { name: 'Recover artwork', exact: true }).waitFor({ state: 'hidden' });
   d = await document(); assert.equal(d.dirty, true); assert.equal(d.frames.length, 1); assert.equal((await page.evaluate(() => window.editor.getFileState())).projectPath, null);
-  const recoveredPath = join(native, 'recovered.pixel.json'); await saveDialog(recoveredPath); await page.getByRole('button', { name: 'Save', exact: true }).click();
+  const recoveredPath = join(native, 'recovered.pixel.json'); await saveDialog(recoveredPath); await nativeMenu('save');
   await waitUntil(async () => (await document()).dirty === false); assert.deepEqual(await projectPixel(recoveredPath, 5, 5), [233, 196, 106, 255]);
   await editPixel(6, 6, '#2A9D8FFF'); await answer(2); await application.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].close(); });
   assert.equal((await document()).dirty, true); assert.equal((await page.evaluate(() => window.editor.getStatus())).mcp.enabled, true);

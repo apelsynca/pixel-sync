@@ -14,6 +14,7 @@ import { connectClient, inspectClient, setupSnippet } from './client-setup';
 import { FileService } from '../persistence/files';
 import { RecoveryManager } from '../persistence/recovery';
 import { FileDialogs } from './file-dialogs';
+import { installEditorMenu } from './menu';
 
 app.setName('PixelSync');
 const dataDirectory = process.env.PIXEL_SYNC_DATA_DIR ?? join(app.getPath('appData'), 'PixelSync');
@@ -131,6 +132,8 @@ if (process.argv.includes('--mcp-stdio')) {
     handle('editor:operations', () => structuredClone(recentOperations));
     handle('editor:client-docs', async input => { const client = parse(clientSchema, input); await shell.openExternal(client === 'codex' ? 'https://developers.openai.com/codex/quickstart/' : 'https://code.claude.com/docs/en/setup'); });
     window = new BrowserWindow({ width: 1360, height: 920, minWidth: 1000, minHeight: 720, backgroundColor: '#11151b', webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
+    const updateMenu = installEditorMenu(window);
+    handle('editor:menu-state', input => updateMenu(parse(z.strictObject({ enabled: z.boolean(), canUndo: z.boolean(), canRedo: z.boolean() }), input)));
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.session.setPermissionRequestHandler((_contents, _permission, respond) => respond(false));
     window.webContents.session.setPermissionCheckHandler(() => false);

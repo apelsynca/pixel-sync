@@ -5,8 +5,7 @@ import type { Operation } from '../core/schema';
 import { ConnectionPanel } from './ConnectionPanel';
 import { documentGuard, DrawingCanvas, Thumbnail, type Tool } from './Canvas';
 import { playbackFrame } from './playback';
-import type { FileStatus } from '../shared/api';
-import { FileMenu } from './FileMenu';
+import type { EditorMenuCommand, FileStatus } from '../shared/api';
 import './style.css';
 
 const tools: { id: Tool; icon: string; name: string; key: string }[] = [
@@ -22,6 +21,7 @@ function Editor() {
   const [tool, setTool] = useState<Tool>('pencil'), [color, setColor] = useState('#E9C46AFF');
   const [zoom, setZoom] = useState(12), [grid, setGrid] = useState(false), [onion, setOnion] = useState(false), [filled, setFilled] = useState(false);
   const [fitRequest, setFitRequest] = useState(0);
+  const [editingText, setEditingText] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [coordinates, setCoordinates] = useState('—');
   const [connections, setConnections] = useState(false), [newCanvas, setNewCanvas] = useState(false), [newWidth, setNewWidth] = useState(32), [newHeight, setNewHeight] = useState(32);
   const [playing, setPlaying] = useState(false), [displayFrame, setDisplayFrame] = useState(''), [selectedClip, setSelectedClip] = useState('');
@@ -55,6 +55,12 @@ function Editor() {
     const index = document.frames.findIndex(frame => frame.id === selectedFrame);
     setFrame(document.frames[(index + delta + document.frames.length) % document.frames.length].id);
   }
+  function pausePlayback(frameId = displayFrame || selectedFrame) {
+    setPlaying(false); setFrame(frameId); setDisplayFrame('');
+    // Keep the elapsed clock when the visible frame becomes the edit selection.
+    if (document) playbackClock.current.key = `${document.documentId}:${document.revision}:${selectedClip}:${frameId}`;
+  }
+  function togglePlayback() { if (playing) pausePlayback(); else setPlaying(true); }
   useEffect(() => {
     if (!playing || !document) return;
     const clip = document.clips.find(item => item.name === selectedClip), ids = clip?.frameIds ?? document.frames.map(frame => frame.id);
@@ -70,28 +76,52 @@ function Editor() {
       playbackClock.current.elapsed = performance.now() - start + base;
       const result = playbackFrame(document.frames, ids, clip?.loop ?? true, playbackClock.current.elapsed);
       setDisplayFrame(result.frameId);
-      if (result.finished) setPlaying(false); else request = requestAnimationFrame(tick);
+      if (result.finished) pausePlayback(result.frameId); else request = requestAnimationFrame(tick);
     };
     tick(); return () => { cancelAnimationFrame(request); if (playbackClock.current.key === key) playbackClock.current.elapsed = performance.now() - start + base; };
   }, [playing, document, selectedClip, selectedFrame]);
+  useEffect(() => {
+    const update = () => setEditingText(!!window.document.activeElement?.matches('input,textarea,[contenteditable]'));
+    window.addEventListener('focusin', update); window.addEventListener('focusout', update);
+    return () => { window.removeEventListener('focusin', update); window.removeEventListener('focusout', update); };
+  }, []);
+  const menuEnabled = !!document && !busy && !connections && !newCanvas && !clipEditor && !sheetDialog && !fileStatus?.recoveryAvailable;
+  useEffect(() => {
+    void window.editor.setMenuState({ enabled: menuEnabled, canUndo: editingText || (menuEnabled && !!document?.history.undo), canRedo: editingText || (menuEnabled && !!document?.history.redo) }).catch(cause => setError(String(cause)));
+  }, [menuEnabled, editingText, document?.history.undo, document?.history.redo]);
+  function handleMenuCommand(command: EditorMenuCommand) {
+    if ((command === 'undo' || command === 'redo') && window.document.activeElement?.matches('input,textarea,[contenteditable]')) {
+      window.document.execCommand(command); return;
+    }
+    if (!menuEnabled || !document) return;
+    switch (command) {
+      case 'new': setNewCanvas(true); break;
+      case 'open': void perform(() => window.editor.openProject()); break;
+      case 'save': void perform(() => window.editor.saveProject()); break;
+      case 'save-as': void perform(() => window.editor.saveProject(true)); break;
+      case 'import': void perform(() => window.editor.importPng()); break;
+      case 'export-png': void perform(() => window.editor.exportPng(selectedFrame)); break;
+      case 'export-sheet': showSheetDialog(); break;
+      case 'undo': if (document.history.undo) void perform(() => window.editor.undo(documentGuard(document))); break;
+      case 'redo': if (document.history.redo) void perform(() => window.editor.redo(documentGuard(document))); break;
+    }
+  }
+  useLayoutEffect(() => window.editor.onMenuCommand(handleMenuCommand));
   useLayoutEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       const element = event.target as HTMLElement;
       if (element.closest('input,textarea,select,[contenteditable]') || connections || newCanvas || clipEditor || sheetDialog || fileStatus?.recoveryAvailable || busy || !document) return;
       const key = event.key.toLowerCase(), control = event.ctrlKey || event.metaKey;
-      if (control && key === 'z') { event.preventDefault(); void perform(() => event.shiftKey ? window.editor.redo(documentGuard(document)) : window.editor.undo(documentGuard(document))); }
-      else if (control && key === 'y') { event.preventDefault(); void perform(() => window.editor.redo(documentGuard(document))); }
-      else if (control && key === 'n') { event.preventDefault(); setNewCanvas(true); }
-      else if (control && key === 's') { event.preventDefault(); void perform(() => window.editor.saveProject(event.shiftKey)); }
-      else if (control && key === 'o') { event.preventDefault(); void perform(() => window.editor.openProject()); }
-      else if (control && key === 'i') { event.preventDefault(); void perform(() => window.editor.importPng()); }
-      else if (control && key === 'e') { event.preventDefault(); if (event.shiftKey) showSheetDialog(); else void perform(() => window.editor.exportPng(selectedFrame)); }
-      else if (!control) {
+      if (control && !event.altKey) {
+        const shortcuts: Record<string, EditorMenuCommand> = { n: 'new', o: 'open', s: event.shiftKey ? 'save-as' : 'save', i: 'import', e: event.shiftKey ? 'export-sheet' : 'export-png', z: event.shiftKey ? 'redo' : 'undo', y: 'redo' };
+        const command = shortcuts[key];
+        if (command) { event.preventDefault(); handleMenuCommand(command); }
+      } else if (!control) {
         const chosen = tools.find(tool => tool.key.toLowerCase() === key);
         if (chosen) { event.preventDefault(); setTool(chosen.id); }
         else if (key === 'g') setGrid(value => !value);
         else if (key === 'o') setOnion(value => !value);
-        else if (key === ' ') { event.preventDefault(); setPlaying(value => !value); }
+        else if (key === ' ') { event.preventDefault(); togglePlayback(); }
         else if (key === 'arrowleft') { event.preventDefault(); navigate(-1); }
         else if (key === 'arrowright') { event.preventDefault(); navigate(1); }
         else if (key === '+' || key === '=') changeZoom(1);
@@ -104,7 +134,6 @@ function Editor() {
   const frameIndex = document.frames.findIndex(frame => frame.id === selectedFrame), frame = document.frames[frameIndex];
   const selectedLayer = document.layers.find(layer => layer.id === layerId);
   const activeFrame = displayFrame && document.frames.some(frame => frame.id === displayFrame) ? displayFrame : selectedFrame;
-  const previewingOtherFrame = !playing && activeFrame !== selectedFrame;
   const palette = document.palette.length ? document.palette : defaultPalette;
   function deleteFrame() {
     if (!frame || !document) return;
@@ -119,13 +148,13 @@ function Editor() {
   }
   return <main className="editor-shell">
     <header><div className="brand"><span className="logo">▦</span><div><h1>PixelSync</h1><span className="eyebrow">A LITTLE PIXEL, A BIG IDEA</span></div></div><div className="document-title">{fileStatus?.documentId === document.documentId && fileStatus.projectPath ? fileStatus.projectPath.split(/[\\/]/).at(-1) : 'Untitled sprite'} {document.dirty && <span title="Unsaved changes">●</span>}<small>{document.width} × {document.height} px</small></div><button className="primary" disabled={busy} onClick={() => setConnections(true)}>Connect AI client ↗</button></header>
-    <div className="document-toolbar"><FileMenu busy={busy} open={() => void perform(() => window.editor.openProject())} save={() => void perform(() => window.editor.saveProject())} saveAs={() => void perform(() => window.editor.saveProject(true))} importPng={() => void perform(() => window.editor.importPng())} exportPng={() => void perform(() => window.editor.exportPng(selectedFrame))} exportSheet={showSheetDialog} /><button disabled={busy} onClick={() => void perform(() => window.editor.saveProject())} title="Save project · Ctrl+S">Save</button><button disabled={busy} onClick={() => setNewCanvas(true)}>＋ New canvas</button><span className="divider" /><button disabled={busy || !document.history.undo} title="Undo · Ctrl+Z" onClick={() => void perform(() => window.editor.undo(documentGuard(document)))}>↶ Undo</button><button disabled={busy || !document.history.redo} title="Redo · Ctrl+Shift+Z" onClick={() => void perform(() => window.editor.redo(documentGuard(document)))}>↷ Redo</button><span className="spacer" /><button aria-pressed={grid} onClick={() => setGrid(value => !value)} title="Pixel grid · G">▦ Grid</button><button aria-pressed={onion} onClick={() => setOnion(value => !value)} title="Onion skin · O">◉ Onion skin</button><span className="divider" /><button onClick={() => changeZoom(-1)} aria-label="Zoom out">−</button><button onClick={() => setFitRequest(value => value + 1)}>Fit</button><span className="zoom-value">{zoom * 100}%</span><button onClick={() => changeZoom(1)} aria-label="Zoom in">＋</button></div>
+    <div className="document-toolbar"><span className="spacer" /><button aria-pressed={grid} onClick={() => setGrid(value => !value)} title="Pixel grid · G">▦ Grid</button><button aria-pressed={onion} onClick={() => setOnion(value => !value)} title="Onion skin · O">◉ Onion skin</button><span className="divider" /><button onClick={() => changeZoom(-1)} aria-label="Zoom out">−</button><button onClick={() => setFitRequest(value => value + 1)}>Fit</button><span className="zoom-value">{zoom * 100}%</span><button onClick={() => changeZoom(1)} aria-label="Zoom in">＋</button></div>
     {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">✕</button></div>}
     {!fileStatus?.recoveryAvailable && fileStatus?.recoveryError && <div className="error-banner" role="alert"><span>{fileStatus.recoveryError}</span><button onClick={() => void perform(() => window.editor.saveProject())}>Save project…</button></div>}
     <div className="workspace"><nav className="tools" aria-label="Drawing tools">{tools.map(item => <button key={item.id} disabled={busy} aria-label={item.name} aria-pressed={tool === item.id} title={`${item.name} · ${item.key}`} onClick={() => setTool(item.id)}><span>{item.icon}</span><small>{item.key}</small></button>)}<div className="tool-color" style={{ backgroundColor: color.slice(0, 7) }} title={color} /></nav>
-      <section className="center"><div className="stage-label"><span>{playing ? 'PLAYING' : tools.find(item => item.id === tool)?.name.toUpperCase()}</span><span>{previewingOtherFrame ? <button onClick={() => { setDisplayFrame(''); playbackClock.current.key = ''; }}>Return to edit frame</button> : tool === 'rectangle' ? <label><input type="checkbox" checked={filled} disabled={busy} onChange={event => setFilled(event.target.checked)} /> Filled rectangle</label> : 'One pixel at a time.'}</span></div>
-        <DrawingCanvas document={document} frameId={activeFrame} layerId={layerId} tool={tool} color={color} zoom={zoom} grid={grid} onion={onion} filled={filled} playing={playing} busy={busy || previewingOtherFrame} fitZoom={setZoom} fitRequest={fitRequest} changeZoom={changeZoom} pick={setColor} coordinates={setCoordinates} setBusy={setBusy} error={setError} />
-        <section className="timeline" aria-label="Animation timeline"><div className="timeline-heading"><h2>Timeline <span>{document.frames.length} frames</span></h2><div className="timeline-actions"><button disabled={busy} onClick={() => navigate(-1)} aria-label="Previous frame">‹</button><button disabled={busy} onClick={() => setPlaying(value => !value)} title="Play or pause · Space">{playing ? 'Ⅱ Pause' : '▷ Play'}</button><button disabled={busy} onClick={() => navigate(1)} aria-label="Next frame">›</button><select aria-label="Playback clip" disabled={busy} value={selectedClip} onChange={event => { setSelectedClip(event.target.value); setPlaying(false); setDisplayFrame(''); playbackClock.current.key = ''; }}><option value="">All frames · loop</option>{document.clips.map(clip => <option key={clip.name} value={clip.name}>{clip.name}{clip.loop ? ' · loop' : ''}</option>)}</select></div></div>
+      <section className="center"><div className="stage-label"><span>{playing ? 'PLAYING' : tools.find(item => item.id === tool)?.name.toUpperCase()}</span><span>{tool === 'rectangle' ? <label><input type="checkbox" checked={filled} disabled={busy} onChange={event => setFilled(event.target.checked)} /> Filled rectangle</label> : 'One pixel at a time.'}</span></div>
+        <DrawingCanvas document={document} frameId={activeFrame} layerId={layerId} tool={tool} color={color} zoom={zoom} grid={grid} onion={onion} filled={filled} playing={playing} busy={busy} fitZoom={setZoom} fitRequest={fitRequest} changeZoom={changeZoom} pick={setColor} coordinates={setCoordinates} setBusy={setBusy} error={setError} />
+        <section className="timeline" aria-label="Animation timeline"><div className="timeline-heading"><h2>Timeline <span>{document.frames.length} frames</span></h2><div className="timeline-actions"><button disabled={busy} onClick={() => navigate(-1)} aria-label="Previous frame">‹</button><button disabled={busy} onClick={togglePlayback} title="Play or pause · Space">{playing ? 'Ⅱ Pause' : '▷ Play'}</button><button disabled={busy} onClick={() => navigate(1)} aria-label="Next frame">›</button><select aria-label="Playback clip" disabled={busy} value={selectedClip} onChange={event => { setSelectedClip(event.target.value); setPlaying(false); setDisplayFrame(''); playbackClock.current.key = ''; }}><option value="">All frames · loop</option>{document.clips.map(clip => <option key={clip.name} value={clip.name}>{clip.name}{clip.loop ? ' · loop' : ''}</option>)}</select></div></div>
           <div className="frame-strip">{document.frames.map((item, index) => <button className={`frame ${activeFrame === item.id ? 'selected' : ''}`} key={item.id} disabled={busy} aria-label={`Frame ${index + 1}`} onClick={() => { setPlaying(false); setDisplayFrame(''); playbackClock.current.key = ''; setFrame(item.id); }}><Thumbnail document={document} frameId={item.id} /><span>{String(index + 1).padStart(2, '0')}<small>{item.duration} ms</small></span></button>)}<button disabled={busy || document.frames.length >= 64} className="add-frame" title="Add transparent frame" onClick={() => edit({ type: 'add_frame' })}>＋</button></div>
           <div className="frame-controls"><button disabled={busy || !frame || document.frames.length >= 64} onClick={() => edit({ type: 'duplicate_frame', frameId: selectedFrame })}>Duplicate</button><button disabled={busy || document.frames.length === 1} onClick={deleteFrame}>Delete</button><button disabled={busy || frameIndex < 1} onClick={() => edit({ type: 'move_frame', frameId: selectedFrame, index: frameIndex - 1 })}>← Move</button><button disabled={busy || frameIndex >= document.frames.length - 1} onClick={() => edit({ type: 'move_frame', frameId: selectedFrame, index: frameIndex + 1 })}>Move →</button><label>Duration <input aria-label="Frame duration" key={`${selectedFrame}:${frame?.duration}`} type="number" min={10} max={60000} defaultValue={frame?.duration ?? 100} disabled={busy} onBlur={event => { const duration = Number(event.target.value); if (frame && duration !== frame.duration) edit({ type: 'set_frame_duration', frameId: frame.id, duration }); }} /> ms</label></div>
         </section>

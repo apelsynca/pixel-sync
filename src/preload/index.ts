@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { EditorApi } from '../shared/api';
 const api: EditorApi = {
+  onMenuCommand: listener => { const receive = (_event: Electron.IpcRendererEvent, command: Parameters<typeof listener>[0]) => listener(command); ipcRenderer.on('editor:menu-command', receive); return () => { ipcRenderer.removeListener('editor:menu-command', receive); }; },
+  setMenuState: state => ipcRenderer.invoke('editor:menu-state', state),
   getStatus: () => ipcRenderer.invoke('editor:status'), setMcpEnabled: enabled => ipcRenderer.invoke('editor:mcp-enable', enabled),
   getDocument: () => ipcRenderer.invoke('editor:document'), edit: input => ipcRenderer.invoke('editor:edit', input),
   undo: input => ipcRenderer.invoke('editor:undo', input), redo: input => ipcRenderer.invoke('editor:redo', input),
