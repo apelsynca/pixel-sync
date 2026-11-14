@@ -34,6 +34,7 @@ interface Props {
   document: DocumentInfo; frameId: string; layerId: string; tool: Tool; color: string; zoom: number; grid: boolean; filled: boolean; onion: boolean; playing: boolean; busy: boolean;
   pick: (color: string) => void; coordinates: (text: string) => void; setBusy: (busy: boolean) => void; error: (message: string) => void;
   fitZoom: (zoom: number) => void; fitRequest: number;
+  changeZoom: (delta: number) => void;
 }
 export function DrawingCanvas(props: Props) {
   const { document, frameId, layerId, tool, zoom, grid, filled } = props;
@@ -45,6 +46,19 @@ export function DrawingCanvas(props: Props) {
   const panning = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const [preview, setPreview] = useState(0);
   const tick = useRef<number | null>(null);
+  useEffect(() => {
+    const area = viewport.current;
+    if (!area) return;
+    const wheel = (event: WheelEvent) => {
+      if (!event.ctrlKey || event.deltaY === 0) return;
+      event.preventDefault();
+      if (!stroke.current && !panning.current) props.changeZoom(event.deltaY < 0 ? 1 : -1);
+    };
+    // React delegates wheel events passively; use a non-passive listener so this
+    // shortcut zooms only the artwork instead of scrolling or browser zooming.
+    area.addEventListener('wheel', wheel, { passive: false });
+    return () => area.removeEventListener('wheel', wheel);
+  }, [props.changeZoom]);
   useEffect(() => {
     const area = viewport.current;
     if (area) props.fitZoom(Math.max(1, Math.min(32, Math.floor(Math.min((area.clientWidth - 144) / document.width, (area.clientHeight - 144) / document.height)))));

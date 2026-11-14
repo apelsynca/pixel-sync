@@ -27,7 +27,7 @@ MCP defaults to disabled; Connect enables it. No manual executable path, token l
 
 - Tools: pencil **B**, eraser **E**, fill **F**, line **L**, rectangle **R**, color picker **I**, pan **H**. Rectangles can be filled or outlined.
 - **Ctrl+Z** undoes a whole stroke or operation; **Ctrl+Shift+Z / Ctrl+Y** redoes. **Escape** cancels an active stroke. Right click a palette swatch to replace it; use Add swatch to extend the palette.
-- Zoom with **+ / −**, use **Fit**, or pan with a middle-button drag. **G** toggles the pixel grid (visible from 400% zoom); **O** toggles onion skin while paused.
+- Zoom with **Ctrl + mouse wheel** over the canvas or **+ / −**, use **Fit**, or pan with a middle-button drag. **G** toggles the pixel grid (visible from 400% zoom); **O** toggles onion skin while paused.
 - The timeline adds/duplicates/deletes/reorders frames and edits their durations. **Space** plays/pauses; **← / →** navigate frames. Named clips support explicit frame order and looping. Playback preserves the selected edit frame; after previewing another frame, choose **Return to edit frame** or click a timeline frame to resume drawing.
 - **Ctrl+N** creates a new canvas. Replacement and quitting prompt before discarding edited artwork. **Saving is not implemented yet**; artwork currently lasts only for the running app session.
 
