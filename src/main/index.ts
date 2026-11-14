@@ -96,6 +96,7 @@ if (process.argv.includes('--mcp-stdio')) {
     handle('editor:files-state', fileState);
     handle('editor:file-save', input => fileDialogs.save(parse(z.boolean(), input)));
     handle('editor:file-open', () => fileDialogs.open()); handle('editor:file-import', () => fileDialogs.open(true));
+    handle('editor:file-export-gif', input => fileDialogs.exportGif(input));
     handle('editor:file-export-png', input => fileDialogs.exportPng(input)); handle('editor:file-export-sheet', input => fileDialogs.exportSheet(input));
     handle('editor:workspace-choose', () => fileDialogs.chooseWorkspace()); handle('editor:workspace-clear', async () => { await files.setWorkspace(null); });
     handle('editor:recovery-restore', () => fileDialogs.restore()); handle('editor:recovery-discard', () => recovery.discard());

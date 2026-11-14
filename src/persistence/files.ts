@@ -6,15 +6,17 @@ import { renderPreview } from '../application/inspection';
 import { fail, guardSchema, parse, replacementSchema } from '../core/schema';
 import { PROJECT_LIMIT } from '../core/project';
 import { atomicExport, atomicWrite, fileFailure, nativeTicket, readBounded, workspaceTicket, type FileIO } from './paths';
+import { renderGif } from './gif';
 import { encodePng, importPng, PNG_FILE_LIMIT, renderSpriteSheet } from './images';
 
 const path = z.string().min(1).max(1024);
 export const openProjectSchema = replacementSchema.extend({ path });
 export const saveProjectSchema = guardSchema.extend({ path, overwrite: z.boolean().default(false) });
 export const exportPngSchema = saveProjectSchema.extend({ frameId: z.string().min(1).max(128) });
+export const exportGifSchema = saveProjectSchema.extend({ clip: z.string().min(1).max(128).optional() });
 export const exportSheetSchema = guardSchema.extend({ path, columns: z.number().int().min(1).max(64).optional() });
-export type FileAction = 'open_project' | 'save_project' | 'import_png' | 'export_png' | 'export_sprite_sheet';
-type FileArgs = z.infer<typeof openProjectSchema> | z.infer<typeof saveProjectSchema> | z.infer<typeof exportPngSchema> | z.infer<typeof exportSheetSchema>;
+export type FileAction = 'open_project' | 'save_project' | 'import_png' | 'export_png' | 'export_sprite_sheet' | 'export_gif';
+type FileArgs = z.infer<typeof exportGifSchema> | z.infer<typeof openProjectSchema> | z.infer<typeof saveProjectSchema> | z.infer<typeof exportPngSchema> | z.infer<typeof exportSheetSchema>;
 export interface FileState { documentId: string | null; projectPath: string | null; workspace: string | null; workspaceError: string | null }
 export class FileService {
   private workspace: string | null = null;
@@ -52,12 +54,12 @@ export class FileService {
     const request = structuredClone(input), root = this.workspace;
     return this.commands.runFileAction(async engine => fileFailure(async () => {
       if (!native && root !== this.workspace) fail('path_denied', 'Workspace changed while this command was queued; retry');
-      const schema = action === 'open_project' || action === 'import_png' ? openProjectSchema : action === 'export_png' ? exportPngSchema : action === 'export_sprite_sheet' ? exportSheetSchema : saveProjectSchema;
+      const schema = action === 'open_project' || action === 'import_png' ? openProjectSchema : action === 'export_gif' ? exportGifSchema : action === 'export_png' ? exportPngSchema : action === 'export_sprite_sheet' ? exportSheetSchema : saveProjectSchema;
       const args = parse<FileArgs>(schema, request);
       const ticket = native ? nativeTicket(args.path) : await workspaceTicket(root, args.path, this.io);
       const check = ticket.check;
       ticket.check = async () => { if (signal?.aborted) fail('cancelled', 'File operation cancelled before publication'); await check(); if (signal?.aborted) fail('cancelled', 'File operation cancelled before publication'); };
-      const extension = action === 'open_project' || action === 'save_project' ? '.pixel.json' : action === 'import_png' || action === 'export_png' ? '.png' : null;
+      const extension = action === 'open_project' || action === 'save_project' ? '.pixel.json' : action === 'import_png' || action === 'export_png' ? '.png' : action === 'export_gif' ? '.gif' : null;
       if (extension && !args.path.toLowerCase().endsWith(extension)) fail('unsupported_format', `Use a ${extension} filename`);
       if (action === 'open_project' || action === 'import_png') {
         const replacement = parse(openProjectSchema, args);
@@ -85,6 +87,11 @@ export class FileService {
         const png = parse(exportPngSchema, args), preview = renderPreview(engine, { ...guarded, frameIds: [png.frameId], columns: 1, scale: 1 });
         await atomicWrite(ticket, encodePng(preview.width, preview.height, preview.pixels), png.overwrite, this.io);
         return { ...guarded, revision: preview.revision, path: args.path, frameId: png.frameId, width: preview.width, height: preview.height };
+      }
+      if (action === 'export_gif') {
+        const args = parse(exportGifSchema, request), { bytes, ...metadata } = renderGif(engine, args.clip);
+        await atomicWrite(ticket, bytes, args.overwrite, this.io);
+        return { documentId: guarded.documentId, revision: guarded.expectedRevision, path: args.path, ...metadata };
       }
       const sheet = renderSpriteSheet(engine, parse(exportSheetSchema, args).columns);
       await atomicExport(ticket, sheet.png, sheet.metadata, this.io);

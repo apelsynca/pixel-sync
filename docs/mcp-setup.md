@@ -10,7 +10,7 @@
 
 Both cards include **Show instructions**, an installation-guide link, and troubleshooting. You can configure a client before installing it; installation itself is not performed by PixelSync. Keep PixelSync open while using its MCP tools.
 
-**Available now:** `get_status`, `get_document`, `get_pixels`, `get_preview`, `get_animation_preview`, `new_document`, `edit_document`, `undo`, `redo`, `open_project`, `save_project`, `import_png`, `export_png`, and `export_sprite_sheet`. Drawing and animation edits appear live in the manual editor and share its undo history. Choose an MCP workspace in the connection panel before using file tools; drawing and previews work without one. See [the tool contract and drawing example](mcp-tools.md).
+**Available now:** `get_status`, `get_document`, `get_pixels`, `get_preview`, `get_animation_preview`, `new_document`, `edit_document`, `undo`, `redo`, `open_project`, `save_project`, `import_png`, `export_png`, `export_gif`, and `export_sprite_sheet`. Drawing and animation edits appear live in the manual editor and share its undo history. Choose an MCP workspace in the connection panel before using file tools; drawing and previews work without one. See [the tool contract and drawing example](mcp-tools.md).
 
 After connecting, open **Show instructions** and choose **Copy first drawing prompt** to ask for a tiny animation on a new layer. Choose its clip in the timeline and press Play; UI Undo reverses an MCP batch, and the assistant can undo a manual stroke. The connection panel displays the most recent 50 tool calls without their arguments or image payloads. Restart existing clients after updating PixelSync so they reload the expanded tool list.
 

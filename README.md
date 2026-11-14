@@ -1,6 +1,6 @@
 # PixelSync
 
-Windows 11 desktop pixel art editor for Bevy assets, with a local MCP server. The manual editor is implemented: drawing tools, RGBA colors, editable palette, layers, animation frames/timing, named clips, playback, onion skin, and shared undo/redo. MCP can draw, manage layers/animation, inspect pixels and PNG previews, and use the same undo/redo as the UI. Editable project saving/loading, PNG import/export, sprite-sheet exports with clip metadata, MCP workspace file tools, and crash recovery are implemented. A Bevy 0.20.1 sample is included; Windows release acceptance and graphical Bevy verification remain pending.
+Windows 11 desktop pixel art editor for Bevy assets, with a local MCP server. The manual editor is implemented: drawing tools, RGBA colors, editable palette, layers, animation frames/timing, named clips, playback, onion skin, and shared undo/redo. MCP can draw, manage layers/animation, inspect pixels and PNG previews, and use the same undo/redo as the UI. Editable project saving/loading, PNG import/export, animated GIF exports, sprite-sheet exports with clip metadata, MCP workspace file tools, and crash recovery are implemented. A Bevy 0.20.1 sample is included; Windows release acceptance and graphical Bevy verification remain pending.
 
 Use Bun 1.4.4 and Node.js 24 LTS or newer (for Electron tooling):
 
@@ -32,6 +32,7 @@ MCP defaults to disabled; Connect enables it. No manual executable path, token l
 - Zoom with **Ctrl + mouse wheel** over the canvas or **+ / −**, use **Fit**, or pan with a middle-button drag. **G** toggles the pixel grid (visible from 400% zoom); **O** toggles onion skin while paused.
 - The timeline adds/duplicates/deletes/reorders frames and edits their durations. **Space** plays/pauses; **← / →** navigate frames. Named clips support explicit frame order and looping. Stopping with **Space** or **Pause**, or reaching the end of a non-looping clip, selects the visible frame so you can draw immediately.
 - **Ctrl+N** creates a new canvas. **Ctrl+S / Ctrl+Shift+S** save / save as `.pixel.json`; **Ctrl+O** opens a project. New/Open/Import and closing offer Save / Discard / Cancel.
+- Use **File → Export animation GIF…** or **Export GIF…** in the timeline to export the selected clip (or all frames) with timing and looping. **Ctrl+Alt+E** exports GIF.
 - Use **File → Import PNG…**, **Export frame PNG…**, or **Export sprite sheet…**. **Ctrl+I** imports, **Ctrl+E** exports a frame, and **Ctrl+Shift+E** opens sprite-sheet export. Sheets go into a new folder with `sheet.png` and `sheet.json`; projects preserve layers, animation, palette and clips.
 - **Connect AI client → MCP file workspace → Choose workspace…** authorizes one folder for MCP project/PNG/sheet tools. Native dialogs may select other files. The workspace persists between launches.
 - Dirty edits receive debounced recovery snapshots. After a crash, the app offers to recover the artwork as an unsaved project; normal close removes the snapshot after resolving Save/Discard/Cancel.
@@ -55,7 +56,7 @@ bun run smoke:bevy      # Headless Bevy export/timing tests (requires Rust 1.97.
 bun run check:bevy      # Compile-check the Bevy graphical viewer
 ```
 
-Run `bun run make:win` to create `out/make/windows/x64/0.1.0/PixelSync-0.1.0-Setup.exe` and its checksums. Copy that single EXE to Windows 11 and run it. The installer includes the full runtime, installs for the current user under `%LOCALAPPDATA%\Programs\PixelSync`, adds Start menu/desktop shortcuts and an Installed apps entry, and offers to launch PixelSync. No administrator access, Node or Bun is required on the target machine. Close PixelSync before upgrading or uninstalling. Projects, `%APPDATA%\PixelSync` settings and AI client configuration are retained on uninstall.
+Run `bun run make:win` to create `out/make/windows/x64/0.2.0/PixelSync-0.2.0-Setup.exe` and its checksums. Copy that single EXE to Windows 11 and run it. The installer includes the full runtime, installs for the current user under `%LOCALAPPDATA%\Programs\PixelSync`, adds Start menu/desktop shortcuts and an Installed apps entry, and offers to launch PixelSync. No administrator access, Node or Bun is required on the target machine. Close PixelSync before upgrading or uninstalling. Projects, `%APPDATA%\PixelSync` settings and AI client configuration are retained on uninstall.
 
 Installer creation works on Linux, macOS and Windows without Wine or Mono. The build downloads a portable NSIS 3.12 toolset (4 MB), verifies its pinned SHA-256, and caches it under `out/tools/`. Node, Bun and `tar` are required on the build host; Windows 11 includes `tar`. See [installer build details](docs/windows-installer.md). Artifacts are unsigned; Windows may show an unknown-publisher warning. Installation, upgrade and uninstall still need acceptance testing on Windows.
 

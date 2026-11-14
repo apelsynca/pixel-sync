@@ -18,6 +18,7 @@ const api: EditorApi = {
   onFileState: listener => { const receive = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]) => listener(payload); ipcRenderer.on('editor:files-changed', receive); return () => { ipcRenderer.removeListener('editor:files-changed', receive); }; },
   saveProject: (saveAs = false) => ipcRenderer.invoke('editor:file-save', saveAs), openProject: () => ipcRenderer.invoke('editor:file-open'),
   importPng: () => ipcRenderer.invoke('editor:file-import'), exportPng: frameId => ipcRenderer.invoke('editor:file-export-png', frameId),
+  exportGif: input => ipcRenderer.invoke('editor:file-export-gif', input),
   exportSpriteSheet: input => ipcRenderer.invoke('editor:file-export-sheet', input), chooseWorkspace: () => ipcRenderer.invoke('editor:workspace-choose'),
   clearWorkspace: () => ipcRenderer.invoke('editor:workspace-clear'), recoverArtwork: () => ipcRenderer.invoke('editor:recovery-restore'), discardRecovery: () => ipcRenderer.invoke('editor:recovery-discard'),
 };

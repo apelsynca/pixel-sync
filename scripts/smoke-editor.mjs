@@ -84,7 +84,7 @@ async function nativeMenu(id) {
       const menu = Menu.getApplicationMenu();
       return { file: menu.items.find(item => item.label === 'File').submenu.items.map(item => item.id), undo: menu.getMenuItemById('undo').enabled, redo: menu.getMenuItemById('redo').enabled, saveShortcut: menu.getMenuItemById('save').accelerator };
     });
-    assert.ok(['new', 'open', 'save', 'save-as', 'import', 'export-png', 'export-sheet'].every(id => menuState.file.includes(id)));
+    assert.ok(['new', 'open', 'save', 'save-as', 'import', 'export-png', 'export-gif', 'export-sheet'].every(id => menuState.file.includes(id)));
     assert.equal(menuState.undo, false); assert.equal(menuState.redo, false); assert.equal(menuState.saveShortcut, 'CmdOrCtrl+S');
     await page.getByRole('button', { name: 'Fit', exact: true }).click();
     await stroke(2, 3, 10, 3); await waitRevision(1);

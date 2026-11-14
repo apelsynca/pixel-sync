@@ -17,6 +17,7 @@ export function installEditorMenu(window: BrowserWindow) {
       { type: 'separator' },
       action('import', 'Import PNG…', 'CmdOrCtrl+I'),
       action('export-png', 'Export frame PNG…', 'CmdOrCtrl+E'),
+      action('export-gif', 'Export animation GIF…', 'CmdOrCtrl+Alt+E'),
       action('export-sheet', 'Export sprite sheet…', 'CmdOrCtrl+Shift+E'),
       { type: 'separator' },
       { role: process.platform === 'darwin' ? 'close' : 'quit' },
@@ -31,7 +32,7 @@ export function installEditorMenu(window: BrowserWindow) {
   ]);
   Menu.setApplicationMenu(menu);
   return (state: EditorMenuState) => {
-    for (const id of ['new', 'open', 'save', 'save-as', 'import', 'export-png', 'export-sheet', 'undo', 'redo']) {
+    for (const id of ['new', 'open', 'save', 'save-as', 'import', 'export-png', 'export-gif', 'export-sheet', 'undo', 'redo']) {
       const item = menu.getMenuItemById(id);
       if (item) item.enabled = id === 'undo' ? state.canUndo : id.startsWith('redo') ? state.canRedo : state.enabled;
     }

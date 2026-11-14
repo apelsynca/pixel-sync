@@ -6,7 +6,7 @@ import { CommandService } from '../application/commands';
 import { animationPreviewSchema, inspectPixelsSchema, PREVIEW_LIMITS, previewSchema, type RenderedPreview } from '../application/inspection';
 import { batchSchema, DocumentError, guardSchema, newDocumentSchema } from '../core/schema';
 import type { ClientId, EditorStatus, McpOperation } from '../shared/api';
-import { FileService, openProjectSchema, saveProjectSchema, exportPngSchema, exportSheetSchema, type FileAction } from '../persistence/files';
+import { FileService, openProjectSchema, saveProjectSchema, exportPngSchema, exportGifSchema, exportSheetSchema, type FileAction } from '../persistence/files';
 import { encodePng } from '../persistence/images';
 
 export interface ToolOptions {
@@ -72,6 +72,7 @@ function fileDefinitions(files?: FileService): Record<string, Definition> {
     save_project: { schema: saveProjectSchema, description: 'Save the exact guarded document revision as a .pixel.json project at a workspace-relative path. Atomic file replacement; existing file requires overwrite: true. Successful save marks that revision clean. No undo history is stored.' },
     import_png: { schema: openProjectSchema, description: 'Import a workspace-relative .png as a new unsaved, one-layer/one-frame document. Requires current identity/revision guard and explicit discardUnsaved if dirty. Input at most 16 MiB and 512×512; supported static RGBA/RGB/grayscale/indexed PNGs up to 8-bit channels. Interlaced data is bounded before decoding. APNG and 16-bit channels are rejected.' },
     export_png: { schema: exportPngSchema, description: 'Export the explicit frame flattened through shared layer visibility as transparent PNG. Requires documentId, expectedRevision, frameId, and workspace-relative .png path; existing destination requires overwrite: true. Exact dimensions, no resampling or view overlays. Does not mark the project saved.' },
+    export_gif: { schema: exportGifSchema, description: 'Export animation to a workspace-relative .gif path. Optional clip name selects its ordered frames and loop flag; otherwise all timeline frames loop forever. Visible layers only, original dimensions, delays rounded to 10 ms. Up to 255 opaque colors per frame (quantized if needed), alpha below 128 becomes transparent and other alpha becomes opaque. Requires documentId and expectedRevision; existing files require overwrite: true. Does not mark the project saved.' },
     export_sprite_sheet: { schema: exportSheetSchema, description: 'Export every frame once in timeline order into a NEW workspace-relative directory path. Stage sheet.png and version-1 sheet.json together, then publish the directory. Refuse any existing export directory. Optional columns defaults near-square; output at most 4096×4096 / 64 MiB decoded RGBA. Metadata includes cell layout, frame count/IDs/durations, clip atlas indices/loop flags, source document/revision and units. No padding, trimming, rotation or resampling; unused cells transparent. Does not mark the project saved.' },
   };
   return Object.fromEntries(Object.entries(contracts).map(([name, contract]) => [name, { ...contract, readOnly: false, run: async (input: unknown, signal: AbortSignal) => result({ ...await files.execute(name as FileAction, input, signal) }) }]));
@@ -87,7 +88,7 @@ export function createToolServer(options: ToolOptions): Server {
     return { name, description: definition.description, inputSchema: schema as Tool['inputSchema'],
       annotations: { readOnlyHint: definition.readOnly, destructiveHint: !definition.readOnly, openWorldHint: false, idempotentHint: definition.readOnly } };
   });
-  const server = new Server({ name: 'pixel-sync', version: '0.1.0' }, { capabilities: { tools: {} }, instructions: MCP_INSTRUCTIONS });
+  const server = new Server({ name: 'pixel-sync', version: '0.2.0' }, { capabilities: { tools: {} }, instructions: MCP_INSTRUCTIONS });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: list }));
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const started = performance.now(), definition = tools[request.params.name];

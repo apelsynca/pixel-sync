@@ -1,4 +1,4 @@
-# Projects, PNG exports, sprite sheets, and recovery
+# Projects, PNG and GIF exports, sprite sheets, and recovery
 
 Use **Save** or **File → Save as…** to keep editable artwork. Use **File → Open project…** to restore it. **Ctrl+S** saves, **Ctrl+Shift+S** saves as a new file, **Ctrl+O** opens, **Ctrl+I** imports PNG, **Ctrl+E** exports the selected frame, and **Ctrl+Shift+E** opens the sprite-sheet export dialog. Replacement and closing offer **Save / Discard / Cancel**. Cancelling a save dialog keeps the current artwork open.
 
@@ -28,7 +28,7 @@ Document session identity, revision, undo history, selection, zoom, playback, an
 
 ## Consistent and atomic file operations
 
-File reads, writes, and exports hold the same command queue as editing. A save/export therefore represents one exact revision. A successful project save marks that content version clean; PNG and sprite-sheet exports do not. Edits queued after a save execute afterward and make the project dirty again.
+File reads, writes, and exports hold the same command queue as editing. A save/export therefore represents one exact revision. A successful project save marks that content version clean; PNG, GIF and sprite-sheet exports do not. Edits queued after a save execute afterward and make the project dirty again.
 
 Project/PNG writes stage a temporary sibling file, flush it, close it, recheck the destination, then publish it. An overwrite uses file replacement; failure before publication retains the existing file. No-overwrite publication uses an exclusive hard link so a concurrently created destination is preserved (a filesystem with hard-link support, such as Windows NTFS, is required for that mode). Temporary cleanup is attempted on every exit path; a cleanup error cannot misreport a successfully published file as an unsuccessful save.
 
@@ -39,6 +39,16 @@ MCP writes require explicit `overwrite: true` to replace an existing file. Nativ
 PNG import accepts static RGBA, RGB, grayscale and indexed PNGs with channel depths up to 8 bits, at most 512×512 and 16 MiB encoded. Signatures, dimensions, chunk bounds, and inflated scanline size are checked before decoding; interlaced Adam7 data also has an explicit inflation bound. The decoder checks CRCs. APNG and 16-bit channels are rejected rather than silently discarding animation or channel precision.
 
 An imported image becomes a new unsaved document with one visible layer and one 100 ms frame. Exporting a frame flattens visible layers with the shared compositor, keeps exact logical dimensions and transparent RGBA, and excludes editor overlays. It does not trim, resample, rotate or palette-quantize the image. PNG import does not recreate the layers lost during flattening; use `.pixel.json` for editable projects.
+
+## Animated GIF export
+
+Choose a clip in the timeline (or **All frames · loop**), then click **Export GIF…**, use **File → Export animation GIF…**, or press **Ctrl+Alt+E**. Choose a `.gif` destination in the Save dialog. Cancelling leaves the document unchanged; existing files use the OS overwrite confirmation, including an extra confirmation when appending `.gif` would replace an existing file.
+
+The GIF contains the selected clip's frames in clip order and honors its loop flag. Without a selected clip, every frame is exported in timeline order and loops forever. Visible layers are flattened at the original canvas dimensions without grid, onion skin or other editor overlays. Frame durations are rounded to the nearest 10 ms, the GIF time unit. Export does not mark the project saved or change history.
+
+GIF supports binary transparency: composite alpha below 128 becomes fully transparent, and alpha of 128 or above becomes opaque. Each frame reserves one transparent palette entry and preserves exact RGB when it has at most 255 opaque colors; larger palettes are quantized to 255 opaque colors without dithering. Fully transparent frames clear the preceding image rather than leaving a trail. Keep the editable project or export PNG/sprite sheets when exact RGBA is needed.
+
+MCP's `export_gif` uses the same exporter and atomic file writes, with a workspace-relative `.gif` path, document/revision guard, optional `clip` name and explicit `overwrite: true` for existing files.
 
 ## Sprite-sheet export version 1
 

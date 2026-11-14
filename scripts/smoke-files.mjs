@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
 import { randomBytes } from 'node:crypto';
+import { GifReader } from 'omggif';
 import { PNG } from 'pngjs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -70,6 +71,20 @@ try {
   await saveDialog(join(native, 'frame.png')); await fileMenu('Export frame PNG…');
   await waitUntil(async () => !!await stat(join(native, 'frame.png')));
   const png = PNG.sync.read(await readFile(join(native, 'frame.png'))); assert.deepEqual([...png.data.subarray((1 * 32 + 1) * 4, (1 * 32 + 1) * 4 + 4)], [0, 0, 255, 255]);
+  await saveDialog(join(native, 'all-frames')); await nativeMenu('export-gif');
+  await waitUntil(async () => !!await stat(join(native, 'all-frames.gif')));
+  const allGif = new GifReader(await readFile(join(native, 'all-frames.gif')));
+  assert.equal(allGif.numFrames(), 2); assert.equal(allGif.loopCount(), 0);
+  await page.getByLabel('Playback clip').selectOption('walk');
+  await saveDialog(join(native, 'clip.gif')); await page.getByRole('button', { name: 'Export GIF…', exact: true }).click();
+  await waitUntil(async () => !!await stat(join(native, 'clip.gif')));
+  const clipGif = new GifReader(await readFile(join(native, 'clip.gif')));
+  assert.equal(clipGif.numFrames(), 2); assert.equal(clipGif.loopCount(), null);
+  assert.equal(clipGif.frameInfo(0).delay, 24); assert.equal(clipGif.frameInfo(1).delay, 10);
+  assert.equal((await document()).dirty, false);
+  await application.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true }); });
+  await nativeMenu('export-gif');
+  await waitUntil(async () => await application.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('export-gif').enabled));
   await openDialog(native); await fileMenu('Export sprite sheet…');
   await page.getByRole('dialog', { name: 'Export sprite sheet' }).getByLabel('Folder name', { exact: true }).fill('gui-sheet');
   await page.getByRole('dialog', { name: 'Export sprite sheet' }).getByLabel('Columns', { exact: true }).fill('2');
@@ -100,7 +115,7 @@ try {
   await assert.rejects(stat(join(data, 'recovery.pixel.json')), { code: 'ENOENT' });
   await launch(); assert.equal((await page.evaluate(() => window.editor.getFileState())).recoveryAvailable, false); assert.ok((await page.evaluate(() => window.editor.getFileState())).workspace);
   assert.deepEqual(errors, []); await application.close(); application = undefined;
-  console.log('File UI smoke passed: native Save/Open/PNG/sheet dialogs, Save shortcut, workspace MCP save, crash/restart recovery, close Cancel/Save, and normal-close snapshot cleanup.');
+  console.log('File UI smoke passed: native Save/Open/PNG/GIF/sheet dialogs, Save shortcut, workspace MCP save, crash/restart recovery, close Cancel/Save, and normal-close snapshot cleanup.');
 } finally {
   await client?.close();
   if (application) { await application.evaluate(({ app }) => app.exit(0)).catch(() => undefined); await application.close().catch(() => undefined); }

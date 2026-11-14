@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { GifReader } from 'omggif';
 import { PNG } from 'pngjs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -35,7 +36,7 @@ describe('MCP workspace file tools over real transports', () => {
   it('advertises file schemas and setup state, requiring a workspace without affecting drawing tools', async () => {
     const f = await fixture();
     const tools = (await f.client.listTools()).tools;
-    expect(tools).toHaveLength(14); expect(tools.find(tool => tool.name === 'export_sprite_sheet')?.inputSchema.additionalProperties).toBe(false);
+    expect(tools).toHaveLength(15); expect(tools.find(tool => tool.name === 'export_sprite_sheet')?.inputSchema.additionalProperties).toBe(false);
     expect(await f.get()).toMatchObject({ capabilities: { files: true, workspaceConfigured: false } });
     failure(await f.call('save_project', { ...guard(f.initial), path: 'hero.pixel.json' }), 'workspace_required');
     expect((await f.call('get_preview', { documentId: f.initial.documentId, frameId: f.initial.frames[0].id })).isError).not.toBe(true);
@@ -50,6 +51,18 @@ describe('MCP workspace file tools over real transports', () => {
     expect((await f.call('save_project', { ...guard(edited), path: 'hero.pixel.json' })).structuredContent).toMatchObject({ document: { revision: 1, dirty: false }, path: 'hero.pixel.json' });
     await f.call('export_png', { ...guard(edited), path: 'hero.png', frameId: first });
     const png = PNG.sync.read(await readFile(join(f.root, 'hero.png'))); expect([...png.data.subarray(0, 4)]).toEqual([18, 52, 86, 128]);
+    const gifResult = await f.call('export_gif', { ...guard(edited), path: 'walk.gif', clip: 'walk' });
+    expect(gifResult.structuredContent).toMatchObject({ frameCount: 2, loop: true, revision: edited.revision });
+    const gifBytes = await readFile(join(f.root, 'walk.gif')), gif = new GifReader(gifBytes);
+    expect([gif.numFrames(), gif.frameInfo(0).delay, gif.frameInfo(1).delay]).toEqual([2, 25, 10]);
+    failure(await f.call('export_gif', { ...guard(edited), path: 'walk.gif' }), 'already_exists');
+    failure(await f.call('export_gif', { ...guard(edited), path: 'bad.png' }), 'unsupported_format');
+    failure(await f.call('export_gif', { ...guard(edited), path: '../escape.gif' }), 'path_denied');
+    failure(await f.call('export_gif', { ...guard(edited), expectedRevision: 999, path: 'stale.gif' }), 'stale_revision');
+    failure(await f.call('export_gif', { ...guard(edited), path: 'bad.gif', clip: 'missing' }), 'invalid_arguments');
+    await f.call('export_gif', { ...guard(edited), path: 'walk.gif', overwrite: true });
+    expect(new GifReader(await readFile(join(f.root, 'walk.gif'))).numFrames()).toBe(2);
+    expect(await f.get()).toEqual({ ...edited, dirty: false });
     await f.call('export_sprite_sheet', { ...guard(edited), path: 'walk', columns: 2 });
     const sheet = JSON.parse(await readFile(join(f.root, 'walk', 'sheet.json'), 'utf8')); expect(sheet).toMatchObject({ frameCount: 2, clips: [{ name: 'walk', indices: [1, 0], loop: true }] });
     await f.call('edit_document', { ...guard(await f.get()), operations: [{ type: 'clear_layer', frameId: first, layerId: layer }] });

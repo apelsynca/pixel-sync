@@ -13,7 +13,7 @@ export interface EditorStatus {
   document: DocumentInfo | null;
   mcp: { enabled: boolean; endpoint: string | null; error: string | null };
 }
-export type EditorMenuCommand = 'new' | 'open' | 'save' | 'save-as' | 'import' | 'export-png' | 'export-sheet' | 'undo' | 'redo';
+export type EditorMenuCommand = 'new' | 'open' | 'save' | 'save-as' | 'import' | 'export-png' | 'export-gif' | 'export-sheet' | 'undo' | 'redo';
 export interface EditorMenuState { enabled: boolean; canUndo: boolean; canRedo: boolean }
 export interface EditorApi {
   onMenuCommand(listener: (command: EditorMenuCommand) => void): () => void;
@@ -43,6 +43,7 @@ export interface EditorApi {
   saveProject(saveAs?: boolean): Promise<boolean>;
   openProject(): Promise<void>;
   importPng(): Promise<void>;
+  exportGif(input: { clip?: string }): Promise<void>;
   exportPng(frameId: string): Promise<void>;
   exportSpriteSheet(input: { name: string; columns: number }): Promise<void>;
   chooseWorkspace(): Promise<void>;

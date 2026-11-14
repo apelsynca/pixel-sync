@@ -59,6 +59,15 @@ export class FileDialogs {
     if (!await this.approveAppendedPath(chosen.filePath, path)) return;
     await this.files.executeNative('export_png', { ...guard(document), frameId, path, overwrite: true });
   }
+  async exportGif(input: unknown) {
+    const args = parse(z.strictObject({ clip: z.string().min(1).max(128).optional() }), input);
+    const document = await this.commands.getDocument(); if (!document) return;
+    const chosen = await dialog.showSaveDialog(this.window(), { title: 'Export animation as GIF', defaultPath: 'animation.gif', filters: [{ name: 'GIF animation', extensions: ['gif'] }], properties: ['showOverwriteConfirmation'] });
+    if (chosen.canceled || !chosen.filePath) return;
+    const path = chosen.filePath.toLowerCase().endsWith('.gif') ? chosen.filePath : chosen.filePath + '.gif';
+    if (!await this.approveAppendedPath(chosen.filePath, path)) return;
+    await this.files.executeNative('export_gif', { ...guard(document), ...args, path, overwrite: true });
+  }
   async exportSheet(input: unknown) {
     const args = parse(z.strictObject({ name: z.string().trim().min(1).max(128), columns: z.number().int().min(1).max(64) }), input);
     if (relativeName(args.name).length !== 1) fail('invalid_arguments', 'Use a single new folder name');
