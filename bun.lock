@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "pixel-editor",
+      "name": "pixel-sync",
       "dependencies": {
         "@modelcontextprotocol/sdk": "1.32.2",
         "pngjs": "7.0.0",

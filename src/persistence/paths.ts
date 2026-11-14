@@ -16,7 +16,7 @@ export function relativeName(value: string): string[] {
   return parts;
 }
 export async function workspaceTicket(root: string | null, value: string, io = fs): Promise<FileTicket> {
-  if (!root) fail('workspace_required', 'Choose an MCP workspace folder in Pixel Editor');
+  if (!root) fail('workspace_required', 'Choose an MCP workspace folder in PixelSync');
   const parts = relativeName(value), path = resolve(root, ...parts), rel = relative(root, path);
   if (!rel || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) fail('path_denied', 'Path must remain inside the workspace');
   const parents = new Map<string, string>();

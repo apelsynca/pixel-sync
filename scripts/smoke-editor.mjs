@@ -13,7 +13,7 @@ import { PNG } from 'pngjs';
 
 const require = createRequire(import.meta.url);
 for (const scale of [1, 1.5]) {
-  const directory = await mkdtemp(join(tmpdir(), 'Pixel Editor UI '));
+  const directory = await mkdtemp(join(tmpdir(), 'PixelSync UI '));
   const token = randomBytes(32).toString('hex');
   const reservation = createServer(); reservation.listen(0, '127.0.0.1'); await once(reservation, 'listening');
   const port = reservation.address().port; await new Promise(resolve => reservation.close(resolve));
@@ -22,7 +22,7 @@ for (const scale of [1, 1.5]) {
   await writeFile(join(codexHome, 'config.toml'), '# Keep this comment\nmodel = "test-model"\n');
   await writeFile(join(claudeHome, '.claude.json'), '{"theme":"dark"}');
   await writeFile(join(directory, 'mcp-connection.json'), JSON.stringify({ port, token, enabled: false }));
-  const env = { ...process.env, PIXEL_EDITOR_DATA_DIR: directory, CODEX_HOME: codexHome, CLAUDE_CONFIG_DIR: claudeHome };
+  const env = { ...process.env, PIXEL_SYNC_DATA_DIR: directory, CODEX_HOME: codexHome, CLAUDE_CONFIG_DIR: claudeHome };
   delete env.ELECTRON_RUN_AS_NODE;
   let application;
   const clients = [];

@@ -19,24 +19,24 @@ describe('in-app client registration', () => {
     const original = '# Personal config\nmodel = "test-model"\n[mcp_servers.other]\ncommand = "other-server"\n# Keep this comment\n[profiles.work]\nmodel = "work-model"\n';
     const output = updateConfig('codex', original, 47831, token);
     expect(output).toContain(original.trimEnd());
-    expect(toml(output)).toMatchObject({ model: 'test-model', profiles: { work: { model: 'work-model' } }, mcp_servers: { other: { command: 'other-server' }, 'pixel-editor': clientEntry('codex', 47831, token) } });
+    expect(toml(output)).toMatchObject({ model: 'test-model', profiles: { work: { model: 'work-model' } }, mcp_servers: { other: { command: 'other-server' }, 'pixel-sync': clientEntry('codex', 47831, token) } });
     expect(output).not.toContain('bearer_token_env_var'); expect(output).not.toContain('.exe');
   });
   it('updates existing quoted Codex tables and credentials without retaining old transport fields', () => {
-    const source = 'model = "keep"\n[mcp_servers."pixel-editor"]\ncommand = "old.exe"\nargs = ["--mcp-stdio"]\n[mcp_servers."pixel-editor".env]\nOLD = "secret"\n[mcp_servers.other]\nurl = "https://example.test/mcp"\n';
+    const source = 'model = "keep"\n[mcp_servers."pixel-sync"]\ncommand = "old.exe"\nargs = ["--mcp-stdio"]\n[mcp_servers."pixel-sync".env]\nOLD = "secret"\n[mcp_servers.other]\nurl = "https://example.test/mcp"\n';
     const output = updateConfig('codex', source, 49999, token);
-    expect(toml(output)).toMatchObject({ model: 'keep', mcp_servers: { 'pixel-editor': clientEntry('codex', 49999, token), other: { url: 'https://example.test/mcp' } } });
+    expect(toml(output)).toMatchObject({ model: 'keep', mcp_servers: { 'pixel-sync': clientEntry('codex', 49999, token), other: { url: 'https://example.test/mcp' } } });
     expect(output).not.toContain('old.exe'); expect(output).not.toContain('OLD');
     expect(updateConfig('codex', output, 49999, token)).toBe(output);
   });
   it('refuses TOML layouts it cannot safely patch instead of changing unrelated content', () => {
-    const source = 'mcp_servers = { "pixel-editor" = { command = "old" } }\n';
+    const source = 'mcp_servers = { "pixel-sync" = { command = "old" } }\n';
     expect(() => updateConfig('codex', source, 47831, token)).toThrow('unsupported TOML layout');
   });
   it('preserves Claude Code project preferences and other servers at user scope', () => {
-    const config = { theme: 'dark', projects: { '/some/game': { hasTrustDialogAccepted: true } }, mcpServers: { other: { type: 'stdio', command: 'keep' }, 'pixel-editor': { type: 'stdio', command: 'old' } } };
+    const config = { theme: 'dark', projects: { '/some/game': { hasTrustDialogAccepted: true } }, mcpServers: { other: { type: 'stdio', command: 'keep' }, 'pixel-sync': { type: 'stdio', command: 'old' } } };
     const output = JSON.parse(updateConfig('claude-code', JSON.stringify(config), 47831, token));
-    expect(output).toEqual({ ...config, mcpServers: { ...config.mcpServers, 'pixel-editor': clientEntry('claude-code', 47831, token) } });
+    expect(output).toEqual({ ...config, mcpServers: { ...config.mcpServers, 'pixel-sync': clientEntry('claude-code', 47831, token) } });
   });
   for (const client of ['codex', 'claude-code'] as const) {
     it(`registers ${client}, backs up the prior file, and detects stale credentials and ports`, async () => {
@@ -49,7 +49,7 @@ describe('in-app client registration', () => {
       expect(await inspectClient(client, paths, 47831, token)).toMatchObject({ detected: true, configured: true, lastStatusCall: null });
       expect((await inspectClient(client, paths, 49999, token)).configured).toBe(false);
       expect((await inspectClient(client, paths, 47831, 'd'.repeat(64))).configured).toBe(false);
-      const files = await readdir(dirname(path)), backup = files.find(name => name.includes('.pixel-editor-backup-'))!;
+      const files = await readdir(dirname(path)), backup = files.find(name => name.includes('.pixel-sync-backup-'))!;
       expect(await readFile(join(dirname(path), backup), 'utf8')).toBe(original);
       expect(files.some(name => name.endsWith('.tmp') || name.endsWith('.lock'))).toBe(false);
     });
@@ -61,14 +61,14 @@ describe('in-app client registration', () => {
       try { await connectClient(client, paths, 47831, token); throw new Error('Expected failure'); }
       catch (error) { expect(String(error)).toContain('invalid'); expect(String(error)).not.toContain(token); }
       expect(await readFile(path, 'utf8')).toBe(invalid);
-      expect((await readdir(dirname(path))).some(name => name.includes('.pixel-editor-') || name.endsWith('.tmp'))).toBe(false);
+      expect((await readdir(dirname(path))).some(name => name.includes('.pixel-sync-') || name.endsWith('.tmp'))).toBe(false);
     });
   }
   it('does not steal an existing setup lock', async () => {
     const paths = await fixture(), path = configPath('codex', paths);
-    await mkdir(dirname(path), { recursive: true }); await writeFile(path + '.pixel-editor.lock', 'lock');
+    await mkdir(dirname(path), { recursive: true }); await writeFile(path + '.pixel-sync.lock', 'lock');
     await expect(connectClient('codex', paths, 47831, token)).rejects.toThrow('already in progress');
-    expect(await readFile(path + '.pixel-editor.lock', 'utf8')).toBe('lock');
+    expect(await readFile(path + '.pixel-sync.lock', 'utf8')).toBe('lock');
   });
 });
 

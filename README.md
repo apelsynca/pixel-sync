@@ -1,4 +1,4 @@
-# Pixel Editor
+# PixelSync
 
 Windows 11 desktop pixel art editor for Bevy assets, with a local MCP server. The manual editor is implemented: drawing tools, RGBA colors, editable palette, layers, animation frames/timing, named clips, playback, onion skin, and shared undo/redo. MCP can draw, manage layers/animation, inspect pixels and PNG previews, and use the same undo/redo as the UI. Editable project saving/loading, PNG import/export, sprite-sheet exports with clip metadata, MCP workspace file tools, and crash recovery are implemented. Windows release acceptance and the Bevy example are the remaining milestone.
 
@@ -19,7 +19,9 @@ sudo pacman -Syu --needed nspr nss gtk3 mesa alsa-lib libxkbcommon
 
 ## Connect an assistant
 
-Click **Connect AI client**, choose **Connect to Codex** or **Connect to Claude Code**, then follow the instructions inside the app. It configures authenticated local HTTP for you. Restart the client, use `/mcp`, and ask **Use pixel-editor to get its status.** Click **Check connection** in Pixel Editor to see the received status call.
+Click **Connect AI client**, choose **Connect to Codex** or **Connect to Claude Code**, then follow the instructions inside the app. It configures authenticated local HTTP for you. Restart the client, use `/mcp`, and ask **Use pixel-sync to get its status.** Click **Check connection** in PixelSync to see the received status call.
+
+Upgrading from Pixel Editor: with both apps closed, copy the contents of the old `Pixel Editor` app-data folder into the new `PixelSync` folder to retain settings, workspace access, and recovery data. The development override is now `PIXEL_SYNC_DATA_DIR`. Connect your assistant again to register `pixel-sync`, then remove its old `pixel-editor` registration. Existing `.pixel.json` projects remain compatible.
 
 MCP defaults to disabled; Connect enables it. No manual executable path, token lookup, or environment variables are required. Keep both apps on the same computer. Use **Show instructions → Copy first drawing prompt** to try an animation. Changes appear live, and the connection panel shows recent tool calls. Restart existing clients after updating the app so they rediscover the tools.
 
@@ -46,7 +48,7 @@ bun run package:win     # Build Windows x64 from Linux or Windows
 bun run make            # Windows Squirrel installer and ZIP, on Windows
 ```
 
-The Windows build is `out/Pixel Editor-win32-x64/PixelEditor.exe`. Copy the **entire** `Pixel Editor-win32-x64` folder to Windows; the executable needs its accompanying runtime files. `package:win` supplies `--platform=win32 --arch=x64` automatically. Installer creation and installation require Windows; artifacts are unsigned.
+The Windows build is `out/PixelSync-win32-x64/PixelSync.exe`. Copy the **entire** `PixelSync-win32-x64` folder to Windows; the executable needs its accompanying runtime files. `package:win` supplies `--platform=win32 --arch=x64` automatically. Installer creation and installation require Windows; artifacts are unsigned.
 
 The smoke scripts use isolated temporary application/client configuration, never your real MCP registrations. They cover manual and MCP drawing, bidirectional undo/redo, PNG/contact-sheet previews, live canvas updates, operation history, file round trips and crash recovery. On headless Linux they use Electron's headless Ozone platform; desktop runs retain Electron's normal sandbox settings. Pass a packaged executable to `node scripts/smoke-editor.mjs "<path>"` or `node scripts/smoke-files.mjs "<path>"` to exercise that build.
 

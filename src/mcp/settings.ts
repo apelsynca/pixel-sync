@@ -22,6 +22,6 @@ export async function saveSettings(directory: string, settings: Settings): Promi
 }
 export async function readConnection(directory: string): Promise<Settings> {
   const settings = settingsSchema.parse(JSON.parse(await readFile(connectionPath(directory), 'utf8')));
-  if (!settings.enabled) throw new Error('MCP is disabled. Enable it in Pixel Editor.');
+  if (!settings.enabled) throw new Error('MCP is disabled. Enable it in PixelSync.');
   return settings;
 }

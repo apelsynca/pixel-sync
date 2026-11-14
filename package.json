@@ -1,9 +1,9 @@
 {
-  "name": "pixel-editor",
-  "productName": "Pixel Editor",
+  "name": "pixel-sync",
+  "productName": "PixelSync",
   "version": "0.1.0",
   "description": "Desktop pixel art editor with a local MCP connection",
-  "author": "Pixel Editor contributors",
+  "author": "PixelSync contributors",
   "license": "MIT",
   "private": true,
   "main": "dist/main.cjs",

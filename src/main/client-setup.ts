@@ -23,23 +23,23 @@ export function clientEntry(client: ClientId, port: number, token: string): Obje
 }
 export function setupSnippet(client: ClientId, port: number, token: string): string {
   const entry = clientEntry(client, port, token);
-  return client === 'codex' ? stringify({ mcp_servers: { 'pixel-editor': entry } }) : JSON.stringify({ mcpServers: { 'pixel-editor': entry } }, null, 2);
+  return client === 'codex' ? stringify({ mcp_servers: { 'pixel-sync': entry } }) : JSON.stringify({ mcpServers: { 'pixel-sync': entry } }, null, 2);
 }
 export function updateConfig(client: ClientId, source: string, port: number, token: string): string {
   const entry = clientEntry(client, port, token);
   if (client === 'claude-code') {
     const config = object(source.trim() ? JSON.parse(source) : {});
     const servers = object(config.mcpServers ?? {});
-    return JSON.stringify({ ...config, mcpServers: { ...servers, 'pixel-editor': entry } }, null, 2) + '\n';
+    return JSON.stringify({ ...config, mcpServers: { ...servers, 'pixel-sync': entry } }, null, 2) + '\n';
   }
   const config = object(parse(source));
   const servers = object(config.mcp_servers ?? {});
-  const expected = { ...config, mcp_servers: { ...servers, 'pixel-editor': entry } };
+  const expected = { ...config, mcp_servers: { ...servers, 'pixel-sync': entry } };
   // Preserve comments and unrelated text. Only replace conventional table blocks
   // for this one server, then parse and compare the entire result before writing.
   let skipping = false;
   const preserved = source.split(/\r?\n/).filter(line => {
-    if (/^\s*\[/.test(line)) skipping = /^\s*\[\s*(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*\.\s*(?:pixel-editor|"pixel-editor"|'pixel-editor')(?:\s*\.[^\]]+)?\s*\]\s*(?:#.*)?$/.test(line);
+    if (/^\s*\[/.test(line)) skipping = /^\s*\[\s*(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*\.\s*(?:pixel-sync|"pixel-sync"|'pixel-sync')(?:\s*\.[^\]]+)?\s*\]\s*(?:#.*)?$/.test(line);
     return !skipping;
   }).join('\n');
   const output = `${preserved.trimEnd()}\n\n${setupSnippet(client, port, token)}`;
@@ -57,7 +57,7 @@ export async function inspectClient(client: ClientId, paths: SetupPaths, port: n
       const source = await readFile(path, 'utf8');
       const config = object(client === 'codex' ? parse(source) : JSON.parse(source));
       const servers = object(config[client === 'codex' ? 'mcp_servers' : 'mcpServers'] ?? {});
-      configured = isDeepStrictEqual(JSON.parse(JSON.stringify(servers['pixel-editor'] ?? null)), clientEntry(client, port, token));
+      configured = isDeepStrictEqual(JSON.parse(JSON.stringify(servers['pixel-sync'] ?? null)), clientEntry(client, port, token));
     } catch { issue = 'Cannot read this client configuration. Connect will leave an invalid file untouched.'; }
   }
   const command = client === 'codex' ? 'codex' : 'claude';
@@ -69,7 +69,7 @@ export async function inspectClient(client: ClientId, paths: SetupPaths, port: n
 export async function connectClient(client: ClientId, paths: SetupPaths, port: number, token: string): Promise<void> {
   const path = configPath(client, paths);
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const lockPath = path + '.pixel-editor.lock';
+  const lockPath = path + '.pixel-sync.lock';
   let lock;
   try { lock = await open(lockPath, 'wx', 0o600); }
   catch { throw new Error('Client setup is already in progress, or its configuration folder is not writable. Try again after the other setup finishes.'); }
@@ -81,7 +81,7 @@ export async function connectClient(client: ClientId, paths: SetupPaths, port: n
       source = await readFile(path, 'utf8');
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     const output = updateConfig(client, source, port, token);
-    if (source) await writeFile(path + '.pixel-editor-backup-' + randomUUID(), source, { flag: 'wx', mode: 0o600 });
+    if (source) await writeFile(path + '.pixel-sync-backup-' + randomUUID(), source, { flag: 'wx', mode: 0o600 });
     await writeFile(temporary, output, { flag: 'wx', mode: 0o600 });
     let current = '';
     try { current = await readFile(path, 'utf8'); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }

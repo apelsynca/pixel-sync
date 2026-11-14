@@ -35,7 +35,7 @@ function pngResult(preview: RenderedPreview): CallToolResult {
 function errorResult(error: unknown): CallToolResult {
   const detail = error instanceof DocumentError ? { code: error.code, message: error.message.slice(0, 1024) }
     : error instanceof z.ZodError ? { code: 'invalid_arguments', message: error.issues.slice(0, 3).map(issue => `${issue.path.join('.').slice(0, 120)}: ${issue.message}`).join('; ').slice(0, 1024) }
-    : { code: 'internal_error', message: 'Pixel Editor could not complete this operation' };
+    : { code: 'internal_error', message: 'PixelSync could not complete this operation' };
   return { ...result({ error: detail }), isError: true };
 }
 function definitions(options: ToolOptions): Record<string, Definition> {
@@ -87,13 +87,13 @@ export function createToolServer(options: ToolOptions): Server {
     return { name, description: definition.description, inputSchema: schema as Tool['inputSchema'],
       annotations: { readOnlyHint: definition.readOnly, destructiveHint: !definition.readOnly, openWorldHint: false, idempotentHint: definition.readOnly } };
   });
-  const server = new Server({ name: 'pixel-editor', version: '0.1.0' }, { capabilities: { tools: {} }, instructions: MCP_INSTRUCTIONS });
+  const server = new Server({ name: 'pixel-sync', version: '0.1.0' }, { capabilities: { tools: {} }, instructions: MCP_INSTRUCTIONS });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: list }));
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const started = performance.now(), definition = tools[request.params.name];
     let response: CallToolResult;
     try {
-      if (!Object.hasOwn(tools, request.params.name)) throw new DocumentError('invalid_arguments', 'Unknown Pixel Editor tool');
+      if (!Object.hasOwn(tools, request.params.name)) throw new DocumentError('invalid_arguments', 'Unknown PixelSync tool');
       // Preflight aggregate pixels before schema validation clones supplied objects.
       if (request.params.name === 'edit_document') {
         const input = request.params.arguments;

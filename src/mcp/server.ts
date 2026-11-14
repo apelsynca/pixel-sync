@@ -50,7 +50,7 @@ export async function startMcp(options: { port: number; token: string; getStatus
     server.once('error', reject);
     server.listen(options.port, '127.0.0.1', () => { server.removeListener('error', reject); resolve(); });
   }).catch((error: NodeJS.ErrnoException) => {
-    if (error.code === 'EADDRINUSE') throw new Error(`MCP port ${options.port} is already in use. Close the other app or change port in mcp-connection.json while Pixel Editor is closed.`);
+    if (error.code === 'EADDRINUSE') throw new Error(`MCP port ${options.port} is already in use. Close the other app or change port in mcp-connection.json while PixelSync is closed.`);
     throw error;
   });
   const address = server.address();

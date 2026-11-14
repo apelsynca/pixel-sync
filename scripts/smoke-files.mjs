@@ -18,7 +18,7 @@ const reservation = createServer(); reservation.listen(0, '127.0.0.1'); await on
 const port = reservation.address().port; await new Promise(resolve => reservation.close(resolve));
 const token = randomBytes(32).toString('hex');
 await writeFile(join(data, 'mcp-connection.json'), JSON.stringify({ port, token, enabled: true }));
-const env = { ...process.env, PIXEL_EDITOR_DATA_DIR: data, CODEX_HOME: join(directory, 'codex'), CLAUDE_CONFIG_DIR: join(directory, 'claude') }; delete env.ELECTRON_RUN_AS_NODE;
+const env = { ...process.env, PIXEL_SYNC_DATA_DIR: data, CODEX_HOME: join(directory, 'codex'), CLAUDE_CONFIG_DIR: join(directory, 'claude') }; delete env.ELECTRON_RUN_AS_NODE;
 let application, page, client;
 const errors = [];
 async function launch() {

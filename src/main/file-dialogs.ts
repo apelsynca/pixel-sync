@@ -20,7 +20,7 @@ export class FileDialogs {
     const document = await this.commands.getDocument(); if (!document) return false;
     let path = this.files.state().documentId === document.documentId ? this.files.state().projectPath : null;
     if (!path || saveAs) {
-      const chosen = await dialog.showSaveDialog(this.window(), { title: 'Save Pixel Editor project', defaultPath: path ?? 'Untitled.pixel.json', filters: [{ name: 'Pixel Editor project', extensions: ['pixel.json'] }], properties: ['showOverwriteConfirmation'] });
+      const chosen = await dialog.showSaveDialog(this.window(), { title: 'Save PixelSync project', defaultPath: path ?? 'Untitled.pixel.json', filters: [{ name: 'PixelSync project', extensions: ['pixel.json'] }], properties: ['showOverwriteConfirmation'] });
       if (chosen.canceled || !chosen.filePath) return false;
       path = chosen.filePath.toLowerCase().endsWith('.pixel.json') ? chosen.filePath : chosen.filePath + '.pixel.json';
       if (!await this.approveAppendedPath(chosen.filePath, path)) return false;
@@ -31,7 +31,7 @@ export class FileDialogs {
     this.cancelGesture();
     const current = await this.commands.getDocument(); if (!current) return undefined;
     if (!current.dirty) return guard(current);
-    const answer = await dialog.showMessageBox(this.window(), { type: 'question', message: 'Save your changes before continuing?', detail: 'Keep the layers, pixels and animation in a Pixel Editor project.', buttons: ['Save', 'Discard', 'Cancel'], defaultId: 0, cancelId: 2 });
+    const answer = await dialog.showMessageBox(this.window(), { type: 'question', message: 'Save your changes before continuing?', detail: 'Keep the layers, pixels and animation in a PixelSync project.', buttons: ['Save', 'Discard', 'Cancel'], defaultId: 0, cancelId: 2 });
     if (answer.response === 2) return undefined;
     if (answer.response === 1) return guard(current);
     if (!await this.save()) return undefined;
@@ -46,7 +46,7 @@ export class FileDialogs {
     return this.commands.newDocument({ ...dimensions, current, discardUnsaved: true });
   }
   async open(png = false) {
-    const chosen = await dialog.showOpenDialog(this.window(), { title: png ? 'Import PNG' : 'Open Pixel Editor project', properties: ['openFile'], filters: [{ name: png ? 'PNG image' : 'Pixel Editor project', extensions: png ? ['png'] : ['pixel.json'] }] });
+    const chosen = await dialog.showOpenDialog(this.window(), { title: png ? 'Import PNG' : 'Open PixelSync project', properties: ['openFile'], filters: [{ name: png ? 'PNG image' : 'PixelSync project', extensions: png ? ['png'] : ['pixel.json'] }] });
     if (chosen.canceled || !chosen.filePaths[0]) return;
     const current = await this.confirmReplacement(); if (!current) return;
     await this.files.executeNative(png ? 'import_png' : 'open_project', { path: chosen.filePaths[0], current, discardUnsaved: true });

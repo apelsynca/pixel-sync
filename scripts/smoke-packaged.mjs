@@ -10,8 +10,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { createServer } from 'node:net';
 import { once } from 'node:events';
 
-const executable = resolve(process.argv[2] ?? `out/Pixel Editor-${process.platform}-${process.arch}/${process.platform === 'win32' ? 'PixelEditor.exe' : 'PixelEditor'}`);
-const directory = await mkdtemp(join(tmpdir(), 'Pixel Editor smoke '));
+const executable = resolve(process.argv[2] ?? `out/PixelSync-${process.platform}-${process.arch}/${process.platform === 'win32' ? 'PixelSync.exe' : 'PixelSync'}`);
+const directory = await mkdtemp(join(tmpdir(), 'PixelSync smoke '));
 // Reserve an available test port before starting Electron.
 const reservation = createServer();
 reservation.listen(0, '127.0.0.1');
@@ -22,7 +22,7 @@ const token = randomBytes(32).toString('hex');
 await writeFile(join(directory, 'mcp-connection.json'), JSON.stringify({ port, token, enabled: true }));
 const workspace = join(directory, 'MCP workspace'); await mkdir(workspace);
 await writeFile(join(directory, 'workspace.json'), JSON.stringify({ root: await realpath(workspace) }));
-const env = { ...process.env, PIXEL_EDITOR_DATA_DIR: directory };
+const env = { ...process.env, PIXEL_SYNC_DATA_DIR: directory };
 delete env.ELECTRON_RUN_AS_NODE;
 const headless = process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY;
 const application = spawn(executable, headless ? ['--ozone-platform=headless', '--no-sandbox', '--disable-gpu'] : [], { env, stdio: ['ignore', 'pipe', 'pipe'] });

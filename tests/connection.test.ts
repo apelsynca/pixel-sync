@@ -20,7 +20,7 @@ async function fixture() {
   return running;
 }
 async function temporaryDirectory() {
-  const directory = await mkdtemp(join(tmpdir(), 'pixel-editor-'));
+  const directory = await mkdtemp(join(tmpdir(), 'pixel-sync-'));
   cleanup.push(() => rm(directory, { recursive: true, force: true }));
   return directory;
 }

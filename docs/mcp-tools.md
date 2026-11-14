@@ -1,6 +1,6 @@
 # MCP drawing and animation tools
 
-Pixel Editor must be open with MCP enabled. Connect using **Connect AI client** in the app; both client guides include a first drawing prompt. Edits appear in the same document that the user is editing, and share the same undo history. For file calls, choose a workspace in the app first; see [project formats, exports and recovery](project-format.md).
+PixelSync must be open with MCP enabled. Connect using **Connect AI client** in the app; both client guides include a first drawing prompt. Edits appear in the same document that the user is editing, and share the same undo history. For file calls, choose a workspace in the app first; see [project formats, exports and recovery](project-format.md).
 
 ## Start with the document
 
@@ -62,7 +62,7 @@ A manual stroke holds a queue reservation until commit or cancellation. Competin
 
 ## Workspace file tools
 
-All file paths are relative to the workspace chosen inside Pixel Editor. Existing parent folders are required. File operations serialize with drawing and refer to the exact requested revision. Native dialogs are separate user-selected destinations and do not expand MCP access.
+All file paths are relative to the workspace chosen inside PixelSync. Existing parent folders are required. File operations serialize with drawing and refer to the exact requested revision. Native dialogs are separate user-selected destinations and do not expand MCP access.
 
 | Tool | Arguments and behavior |
 | --- | --- |

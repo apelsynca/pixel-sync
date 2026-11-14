@@ -15,8 +15,8 @@ import { FileService } from '../persistence/files';
 import { RecoveryManager } from '../persistence/recovery';
 import { FileDialogs } from './file-dialogs';
 
-app.setName('Pixel Editor');
-const dataDirectory = process.env.PIXEL_EDITOR_DATA_DIR ?? join(app.getPath('appData'), 'Pixel Editor');
+app.setName('PixelSync');
+const dataDirectory = process.env.PIXEL_SYNC_DATA_DIR ?? join(app.getPath('appData'), 'PixelSync');
 app.setPath('userData', dataDirectory);
 if (process.argv.includes('--mcp-stdio')) {
   runBridge(dataDirectory).catch(error => { process.stderr.write(`${error.message}\n`); app.exit(1); });
@@ -45,11 +45,11 @@ if (process.argv.includes('--mcp-stdio')) {
   const serial = <T,>(action: () => Promise<T>) => { const result = queue.then(action); queue = result.catch(() => undefined); return result; };
   commands.subscribe(event => { document = event.document; window?.webContents.send('editor:changed', event); });
   const fileState = () => ({ ...files.state(), ...(recovery?.state() ?? { recoveryAvailable: false, recoveryError: null }) });
-  const filesChanged = () => { if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) { window.webContents.send('editor:files-changed', fileState()); window.setTitle(`${basename(files.state().projectPath ?? 'Untitled sprite')} — Pixel Editor`); } };
+  const filesChanged = () => { if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) { window.webContents.send('editor:files-changed', fileState()); window.setTitle(`${basename(files.state().projectPath ?? 'Untitled sprite')} — PixelSync`); } };
   files.subscribe(filesChanged);
   const status = (): EditorStatus => ({ instanceId, milestone: 'files', document, mcp: { enabled: !!running, endpoint: running ? `http://127.0.0.1:${running.port}/mcp` : null, error } });
   const setEnabled = async (enabled: boolean) => {
-    if (enabled && shuttingDown) throw new Error('Pixel Editor is closing');
+    if (enabled && shuttingDown) throw new Error('PixelSync is closing');
     error = null;
     if (running) { await running.close(); running = undefined; }
     settings.enabled = enabled;
@@ -126,8 +126,8 @@ if (process.argv.includes('--mcp-stdio')) {
       const client = parse(clientSchema, input);
       clipboard.writeText(setupSnippet(client, settings.port, settings.token));
     });
-    handle('editor:prompt-copy', () => { clipboard.writeText('Use pixel-editor to get its status.'); });
-    handle('editor:drawing-prompt-copy', () => { clipboard.writeText('Use pixel-editor: call get_document first, then create a tiny two-frame sprite animation on a new layer without replacing the current document or changing existing artwork. Use unique names for the new layer and a looping animation clip. Use the current revision for each atomic batch, request get_animation_preview for the two frames, and explain how I can play the clip and undo your edits in Pixel Editor.'); });
+    handle('editor:prompt-copy', () => { clipboard.writeText('Use pixel-sync to get its status.'); });
+    handle('editor:drawing-prompt-copy', () => { clipboard.writeText('Use pixel-sync: call get_document first, then create a tiny two-frame sprite animation on a new layer without replacing the current document or changing existing artwork. Use unique names for the new layer and a looping animation clip. Use the current revision for each atomic batch, request get_animation_preview for the two frames, and explain how I can play the clip and undo your edits in PixelSync.'); });
     handle('editor:operations', () => structuredClone(recentOperations));
     handle('editor:client-docs', async input => { const client = parse(clientSchema, input); await shell.openExternal(client === 'codex' ? 'https://developers.openai.com/codex/quickstart/' : 'https://code.claude.com/docs/en/setup'); });
     window = new BrowserWindow({ width: 1360, height: 920, minWidth: 1000, minHeight: 720, backgroundColor: '#11151b', webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
