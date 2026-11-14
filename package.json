@@ -1,0 +1,53 @@
+{
+  "name": "pixel-editor",
+  "productName": "Pixel Editor",
+  "version": "0.1.0",
+  "description": "Desktop pixel art editor with a local MCP connection",
+  "author": "Pixel Editor contributors",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "bun run build && electron .",
+    "package": "bun run build && electron-forge package",
+    "make": "bun run build && electron-forge make",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "bun run build && vitest run",
+    "check": "bun run typecheck && bun run lint && bun run test",
+    "smoke:packaged": "node scripts/smoke-packaged.mjs",
+    "package:win": "bun run build && electron-forge package --platform=win32 --arch=x64"
+  },
+  "config": {
+    "forge": "./forge.config.cjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "8.0.1",
+    "@electron-forge/maker-squirrel": "8.0.1",
+    "@electron-forge/maker-zip": "8.0.1",
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "electron": "45.3.2",
+    "esbuild": "0.28.2",
+    "eslint": "10.15.0",
+    "globals": "17.14.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  },
+  "packageManager": "bun@1.4.4",
+  "trustedDependencies": [
+    "esbuild",
+    "electron-winstaller"
+  ]
+}

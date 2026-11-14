@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve, join } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { createServer } from 'node:net';
+import { once } from 'node:events';
+
+const executable = resolve(process.argv[2] ?? `out/Pixel Editor-${process.platform}-${process.arch}/${process.platform === 'win32' ? 'PixelEditor.exe' : 'PixelEditor'}`);
+const directory = await mkdtemp(join(tmpdir(), 'Pixel Editor smoke '));
+// Reserve an available test port before starting Electron.
+const reservation = createServer();
+reservation.listen(0, '127.0.0.1');
+await once(reservation, 'listening');
+const port = reservation.address().port;
+await new Promise(resolve => reservation.close(resolve));
+const token = randomBytes(32).toString('hex');
+await writeFile(join(directory, 'mcp-connection.json'), JSON.stringify({ port, token, enabled: true }));
+const env = { ...process.env, PIXEL_EDITOR_DATA_DIR: directory };
+delete env.ELECTRON_RUN_AS_NODE;
+const application = spawn(executable, [], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+let diagnostics = '';
+application.stderr.on('data', chunk => { diagnostics += chunk; });
+const direct = new Client({ name: 'packaged-http-smoke', version: '1.0.0' });
+const bridge = new Client({ name: 'packaged-stdio-smoke', version: '1.0.0' });
+try {
+  const endpoint = new URL(`http://127.0.0.1:${port}/mcp`);
+  const deadline = Date.now() + 30_000;
+  while (true) {
+    try {
+      const response = await fetch(endpoint, { signal: AbortSignal.timeout(500) });
+      if (response.status === 401) break;
+    } catch { /* Electron may still be starting. */ }
+    if (application.exitCode !== null || Date.now() > deadline) throw new Error(`Packaged app did not start: ${diagnostics}`);
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  await direct.connect(new StreamableHTTPClientTransport(endpoint, { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
+  await bridge.connect(new StdioClientTransport({ command: executable, args: ['--mcp-stdio'], env, stderr: 'pipe' }));
+  const status = await direct.callTool({ name: 'get_status', arguments: {} });
+  assert.deepEqual(await bridge.callTool({ name: 'get_status', arguments: {} }), status);
+  assert.equal(status.structuredContent.mcp.enabled, true);
+  assert.equal(status.structuredContent.document, null);
+  console.log('Packaged HTTP and stdio reach the same live Electron instance.');
+} finally {
+  await Promise.allSettled([bridge.close(), direct.close()]);
+  if (application.exitCode === null) {
+    const exited = once(application, 'exit');
+    application.kill();
+    await exited;
+  }
+  await rm(directory, { recursive: true, force: true });
+}
