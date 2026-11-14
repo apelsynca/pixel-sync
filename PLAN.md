@@ -1,6 +1,8 @@
 # Pixel Art Editor — Implementation Plan
 
-Status: milestone 2 (shared document engine) is complete. The user verified that the app runs on Windows 11 and directed work to proceed to milestone 2. Installer and actual desktop MCP-client acceptance remain unverified. Milestones 3–6 have not started; the visible application still shows the connection foundation.
+Status: milestones 3 and 4 are implemented, including the manual animation editor, in-app Codex/Claude Code setup, and live MCP drawing/history/PNG previews. Automated Linux checks exercise real Electron input and real HTTP/stdio editing at two display scales. Updated Windows runtime and native assistant-driven acceptance remain unverified. Milestones 5–6 have not started. The user's earlier Windows launch verification covered the foundation build.
+
+Implemented onboarding: **Connect AI client → Connect to Codex / Connect to Claude Code** configures authenticated local HTTP and provides instructions inside the app. Basic setup requires no executable path, token lookup, environment variables, or manual configuration editing. Each guide now includes a first drawing prompt, shared undo/playback instructions, and a recent-operation list. File tools remain milestone 5.
 
 ## Implementation progress — 2026-11-14
 
@@ -8,16 +10,16 @@ Status: milestone 2 (shared document engine) is complete. The user verified that
 
 - [x] Scaffold TypeScript, Electron, React, Vite/esbuild, ESLint, and Vitest with pinned dependencies.
 - [x] Switch package management, scripts, documentation, and CI to Bun 1.4.4; commit-ready `bun.lock` replaces `package-lock.json`. Node.js remains required for build/Electron tooling.
-- [x] Add a foundation window with a checkerboard canvas placeholder and MCP enable/disable, endpoint, and startup-error display. No writable document or drawing tools exist yet.
+- [x] Add the milestone 1 foundation window and MCP settings. Milestone 3 replaces the placeholder with the writable editor.
 - [x] Configure isolated, sandboxed renderer/preload IPC with sender and payload validation, blocked navigation, and disabled renderer Node integration.
 - [x] Implement the official SDK Streamable HTTP endpoint bound to `127.0.0.1`, bearer-token authentication, Host/Origin checks, a 4 MiB request limit, and a read-only `get_status` tool.
 - [x] Persist a generated token, enabled setting, and configurable port in the per-user `mcp-connection.json`; start disabled by default and report port collisions.
 - [x] Implement `PixelEditor.exe --mcp-stdio` branching before GUI startup/single-instance locking, forwarding protocol messages to the running app. Also provide the compiled development bridge at `dist/bridge.cjs`.
 - [x] Add five integration tests covering HTTP/compiled-stdio instance identity and tool errors, request validation, port collisions, persistent settings, and disabled/app-closed diagnostics.
 - [x] Add Electron Forge Windows Squirrel/ZIP configuration and Windows CI for checks, packaging, packaged executable smoke testing, and unsigned installer artifacts. CI is configured; its Windows results have not been observed.
-- [x] Add README development/build instructions and MCP setup/troubleshooting documentation. Client-specific configuration examples remain unverified.
+- [x] Add README development/build instructions and MCP setup/troubleshooting documentation. Milestone 3 adds in-app guides and verifies configuration parsing with installed Codex and Claude Code binaries; native tool calls remain acceptance work.
 - [x] Add and verify `bun run package:win`, which supplies `--platform=win32 --arch=x64` automatically and avoids the invalid `x6` architecture argument.
-- [x] Diagnose Linux startup failure as missing Electron shared libraries and document Arch Linux dependency installation. Installing them requires the user's sudo password; Linux GUI startup remains unverified.
+- [x] Diagnose the initial missing Electron shared libraries and document Arch Linux dependency installation. The libraries are now present; real Electron UI tests pass using Linux's headless Ozone platform.
 
 ### Verification recorded
 
@@ -46,7 +48,39 @@ Status: milestone 2 (shared document engine) is complete. The user verified that
 - [x] Enforce frame/layer/clip, supplied/read pixel, decoded document, staging, operation count, and undo-memory limits; reject oversized edits before publication.
 - [x] Verify `bun run check`: TypeScript, ESLint, production build, 19 new engine/application tests and the five existing real-transport integration tests passed (24 total).
 
-The engine and command service are ready for the manual-editor IPC and renderer integration in milestone 3. Drawing tools and MCP editing tools are not exposed by the running app yet. See `docs/document-engine.md` for command semantics, limits, and gesture lifecycle.
+The engine and command service now drive both the manual editor and MCP editing. See `docs/document-engine.md` for engine semantics and `docs/mcp-tools.md` for transport tools and examples.
+
+### Milestone 3 — implemented 2026-11-14; Windows/client acceptance pending
+
+- [x] Connect the authoritative command service to validated, main-frame-only IPC; publish document revisions and bounded frame snapshots. Keep the renderer sandboxed with Node integration disabled and web permissions denied.
+- [x] Add pencil, eraser, fill, line, outlined/filled rectangle, composite color picker, RGBA/alpha controls, editable swatches, and shared undo/redo. Interpolate pointer movement and group a gesture into one commit; cancellation/blur releases its reservation.
+- [x] Add layer selection, naming, order, visibility, additions/deletions, integer zoom, fit, pan, pixel grid, coordinates, tool shortcuts, and unsaved replacement/close prompts. Project saving is still milestone 5.
+- [x] Add frame thumbnails, selection, add/duplicate/delete/reorder, duration editing, previous/next navigation, clip creation/editing/order/looping, elapsed-time playback, and paused onion skin. Playback retains the selected edit frame and non-looping clips stop on their final preview frame.
+- [x] Add separate Codex and Claude Code cards with Connect/Update, in-app instructions, installation-guide links, a copyable first prompt, optional populated private configuration, server availability, and actual status-call timestamps. Write persistent authenticated HTTP configuration without a shell or a token environment variable.
+- [x] Preserve unrelated client configuration, back up existing nonempty files, atomically replace configuration, detect concurrent changes, and leave invalid/unsupported layouts untouched. Keep credentials out of routine UI, IPC results, parser diagnostics, and logs.
+- [x] Verify generated configuration with installed codex-cli 0.168.0 and Claude Code 2.1.325 using isolated client homes. This verifies their config parsers, not assistant-driven tool calls.
+- [x] Pass `bun run check`: TypeScript, ESLint, production build, and 36 engine/application/configuration/transport tests.
+- [x] Pass real Electron UI smoke tests at 100% and 150% display scaling, exercising drawing, history, cancellation, layers, timing, clips, playback, both connection buttons, authenticated named-route status calls, and unsaved replacement/close handling. SDK test clients supply the status calls.
+- [x] Add Windows CI execution of the editor smoke script and update packaged status assertions for the new document metadata.
+- [x] Package the Linux app and pass packaged HTTP/stdio plus editor smoke checks at both display scales. Rebuild the Windows x64 folder with milestone 3 at `out/Pixel Editor-win32-x64/`; Windows execution of this updated build remains unverified.
+- [ ] Verify the updated manual editor on Windows 11 at actual Windows display scales.
+- [ ] Follow the in-app guides in native Codex and Claude Code, call `get_status`, restart both clients/app, and verify persistence. Do not infer these results from SDK tests or CLI configuration parsing.
+
+### Milestone 4 — implemented 2026-11-14; native Windows/client acceptance pending
+
+- [x] Expose `get_status`, `get_document`, `get_pixels`, `get_preview`, `get_animation_preview`, `new_document`, `edit_document`, `undo`, and `redo` through the official SDK and the existing authenticated HTTP/stdio paths. Advertise strict object schemas, bounded capabilities/limits, safe read/write annotations, and agent workflow instructions.
+- [x] Route mutations through the same serialized command service as manual gestures. Preserve atomic batches, identity/revision checks, unsaved replacement guards, and shared undo/redo. Validate read identity and optional expected revisions inside the queue.
+- [x] Return exact base64 RGBA regions and transparent PNG image content. Render cropped/integer-scaled previews and row-major contact sheets of 1–16 explicit frames from one revision; include frame positions/durations and enforce 1024×1024 / 4 MiB decoded output. Exclude editor overlays.
+- [x] Return stable structured errors for schema failures, missing targets, stale revisions, history/replacement/size limits, cancellation, and unexpected internal failures. Bound error text and cancel queued work when its transport closes or the server stops.
+- [x] Display the last 50 MCP operations in the connection panel, with route, tool, outcome, revision, elapsed time, and summary. Do not retain arguments, credentials, pixels, or preview images.
+- [x] Update both in-app client guides with a copyable drawing prompt, live editing/preview capabilities, playback directions, and shared undo/redo instructions.
+- [x] Pass `bun run check`: type checking, linting, production build, and 45 tests, including nine real HTTP/compiled-stdio editing tests covering schemas, animation/pixels/PNG layout, rollback, concurrent stale edits, shared history, replacement, limits, gesture conflicts, and pending cancellation.
+- [x] Pass the expanded Electron smoke checks at 100%/150% scaling: MCP art appears in the canvas; UI Undo/MCP Redo and MCP Undo/manual strokes share history; a remote clip plays; remote mutations pause playback without retargeting the edit frame; PNGs exclude onion skin; operation history stays bounded. Both configured endpoints discover all editing tools with SDK test clients.
+- [x] Expand the packaged smoke script to edit through the executable stdio bridge, read through HTTP, compare PNG responses, and move through shared history across both transports.
+- [x] Pass the expanded packaged Linux HTTP/stdio and UI smoke checks, then rebuild the Windows x64 folder at `out/Pixel Editor-win32-x64/`. The updated Windows executable has not been run on this Linux host.
+- [ ] Perform native Codex and Claude Code drawing/preview/playback/undo acceptance on Windows 11 and record the tested runtime versions. Existing configuration-parser checks and SDK clients do not establish this acceptance.
+
+MCP save/open/import/export tools are intentionally implemented with persistence/workspace enforcement in milestone 5. No placeholder file tool claims to save artwork.
 
 ## 1. Goal and decisions
 
@@ -58,7 +92,7 @@ Confirmed requirements:
 - The editor is intended for creating pixel art for Bevy games.
 - Plan animation as part of the initial delivery, including manual editing, MCP control, and Bevy sprite-sheet export.
 - Choose the implementation language from Python, TypeScript/JavaScript, or Rust.
-- Support local desktop MCP clients, such as Codex or Claude Desktop.
+- Support Codex and Claude Code as the first supported local MCP clients, with dedicated in-app connection instructions. Other clients, including Claude Desktop, may use the documented generic MCP connection but are not substitutes for testing these two integrations.
 - Planning is complete; implementation is now underway, with progress tracked above.
 
 Chosen approach: **TypeScript + Electron**, with React for the editor UI and Canvas 2D for pixel rendering. Use the official MCP TypeScript SDK, Zod for boundary validation, a pure JavaScript PNG codec, Vitest for core/integration tests, and Electron Forge for packaging. Select supported stable versions and pin dependencies when implementation starts.
@@ -82,7 +116,7 @@ This keeps the editor and MCP server in one language, provides desktop file dial
 - Undo/redo shared between manual actions and MCP edits. One gesture or MCP batch is one undo step.
 - Native project save/open, single-frame PNG import/export, animated sprite-sheet PNG plus JSON export, dirty-document indicator, and unsaved-change prompts.
 - Keyboard shortcuts for tools, undo/redo, new/open/save/export, and zoom.
-- A compact MCP settings/status panel with enable/disable, connection details, credential reset, client setup instructions, and a recent-operation list.
+- A compact MCP settings/status panel with enable/disable, **Connect to Codex / Connect to Claude Code**, guided setup and connection verification, advanced connection details, credential reset, and a recent-operation list. Basic setup must not require manual executable paths, token-file lookup, environment variables, or configuration editing.
 
 ### MCP
 
@@ -155,9 +189,22 @@ Provide a packaged **stdio bridge** for clients that launch a server executable.
 
 The bridge entry point is a non-GUI mode of the installed application, for example `PixelEditor.exe --mcp-stdio`. Packaging must prove this mode works with the Windows executable before substantial UI work. Its initialization must bypass GUI startup and the GUI single-instance lock. If the app is closed or MCP is disabled, return a useful connection error; automatic app launching is deferred.
 
-The app generates a bearer token and stores connection metadata in its per-user application-data directory with user-scoped access. The bridge reads it automatically; direct HTTP clients configure the token explicitly. Validate Host and Origin as appropriate, reject invalid origins, and require authorization for endpoint access. Follow the official [MCP transport specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/transports/streamable-http.mdx). Use the SDK's supported negotiated protocol versions instead of hand-writing JSON-RPC.
+The app generates a bearer token and stores connection metadata in its per-user application-data directory with user-scoped access. The bridge reads it automatically; the guided HTTP setup configures authentication for the selected client automatically. Manual token configuration is an advanced fallback. Validate Host and Origin as appropriate, reject invalid origins, and require authorization for endpoint access. Follow the official [MCP transport specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/transports/streamable-http.mdx). Use the SDK's supported negotiated protocol versions instead of hand-writing JSON-RPC.
 
 Client setup documentation must include tested command/argument examples for the packaged stdio mode and an HTTP example for a compatible client. Confirm exact client configuration syntax during implementation. The [official TypeScript SDK](https://ts.sdk.modelcontextprotocol.io/) documents the available transports.
+
+### Simple in-app connection setup
+
+The primary user flow is **open Pixel Editor → choose Codex or Claude Code → click Connect → follow any client restart instruction → verify the connection**. Keep the instructions inside the app, available before and after setup. The existing manual commands remain an advanced option.
+
+- Add a **Connect an AI client** panel with separate Codex and Claude Code cards. Each card explains what the client can currently do, shows its setup state, and provides **Connect**, **Show instructions**, and **Check connection** actions. During milestone 3, explain that only `get_status` is exposed; update the text when milestone 4 adds editing tools.
+- Prefer direct local HTTP so users do not have to choose or maintain an executable path. The app supplies the current endpoint and authentication through the client's supported persistent configuration. Detect the selected client's available setup mechanism and use its documented configuration format or CLI. Verify both clients' current official documentation during implementation; do not assume they use identical settings or authentication mechanisms.
+- Clicking **Connect** explicitly authorizes registering this app with the selected client and enabling MCP. Detect the supported per-user configuration, preserve unrelated servers/settings, and retain a recoverable backup before changing existing configuration. Update only Pixel Editor's entry. Avoid shell startup-file changes and avoid requiring a token environment variable on every launch. Keep credential handling in the main process; do not expose tokens in routine UI, logs, or copyable instructions.
+- If automatic configuration is unavailable, explain the specific reason and show the shortest tested client-specific fallback inside the app. Provide a **Copy setup command** or **Copy configuration** action with machine-specific values already filled in; do not ask the user to find paths or read JSON files. An automatically populated stdio bridge setup may be offered as a fallback, clearly labeled; it must not be the only documented path. Any deliberate credential-bearing configuration copy must be clearly identified and excluded from logs.
+- Each client's in-app instructions cover installation/detection, connecting, any required restart or new session, how to inspect available MCP tools in that client, and a ready-to-copy first prompt: **Use pixel-editor to get its status.** Show the actual app capabilities and next steps after a successful check.
+- Distinguish **configured**, **server available**, and **client connection verified**. A successful config write or app-side HTTP probe alone must not claim the client connected. Record a real MCP initialization/tool call and guide the user to run the status prompt in the selected client. Do not promise a client identity that the protocol cannot establish.
+- Handle missing clients, disabled MCP, occupied ports, stale credentials, and unsupported client versions with an actionable message in the same panel. After a port change or credential reset, offer **Update client connection** using the same setup flow. Explicitly state that the app must remain open and the client must reach the same localhost endpoint; Windows/WSL or remote-host connections need separately verified instructions.
+- Exit criterion: on Windows 11, a user connects both Codex and Claude Code using the in-app instructions, without manually entering an executable path, inspecting token files, setting environment variables, or editing config files. Each client successfully calls `get_status`, and setup survives an app/client restart.
 
 ## 5. MCP tool contract
 
@@ -222,15 +269,17 @@ Do not require resource subscriptions, prompts, or custom MCP extensions for fir
 
 ### 3 — Usable manual editor
 
+- Implement the simple in-app MCP connection panel from section 4 early in this milestone, including dedicated Codex and Claude Code instructions, automatic authenticated setup, a populated fallback, and honest connection verification. This can be tested against the existing `get_status` tool before MCP editing is implemented.
 - Build the toolbar, palette, layers panel, canvas input, zoom/pan/grid, shortcuts, and history controls.
 - Route all gestures through the command service; group strokes into single history entries.
 - Add the timeline, frame actions, timing controls, clip editor, playback, and onion skin according to section 10.
-- Exit criterion: manually create and play a layered animation, edit timing/clips, and undo/redo pixel and frame changes at different zoom levels and Windows display scales.
+- Exit criterion: manually create and play a layered animation, edit timing/clips, and undo/redo pixel and frame changes at different zoom levels and Windows display scales. Connect both Codex and Claude Code through the in-app setup and verify `get_status` without manual credential or path configuration.
 
 ### 4 — Complete MCP editing
 
 - Implement the complete tool contract including frame/clip operations, frame/contact-sheet previews, limits, authentication, and recent-operation display.
 - Test real transport calls rather than only calling handlers directly.
+- Update the in-app Codex and Claude Code guides with a tested first drawing prompt and shared undo/redo instructions; verify both clients can discover and call the editing tools.
 - Exit criterion: a client creates an animation with layers and named clips, edits timing, inspects a contact sheet, and the user can play it and undo the client's pixel/frame changes in the UI.
 
 ### 5 — Files and recovery
@@ -242,7 +291,7 @@ Do not require resource subscriptions, prompts, or custom MCP extensions for fir
 
 - Produce an x64 Windows installer and verify installation, upgrade/uninstall behavior, stdio launch paths containing spaces, and cleanup of bridge processes/connections.
 - Run the end-to-end acceptance scenario below on Windows 11, ideally a clean VM without development tools.
-- Document development commands, client setup, tool usage, file format, limits, and troubleshooting. Configure Windows CI for build/tests/package smoke checks where available.
+- Document development commands, client setup, tool usage, file format, limits, and troubleshooting. Verify the in-app Codex and Claude Code instructions against recorded client versions and the installed Windows app; keep external setup docs consistent. Configure Windows CI for build/tests/package smoke checks where available.
 - Document and smoke-test static PNG and animated sprite-sheet workflows in a small Bevy sample, including metadata loading, clip playback, and nearest-neighbor sampling; record the tested Bevy version.
 - Exit criterion: an installable release artifact and repeatable client setup instructions. Public distribution/signing is a separate decision; record the artifact's signing status.
 
@@ -252,7 +301,7 @@ Focus automated tests on meaningful behavior: drawing boundaries and alpha, floo
 
 Release scenario:
 
-1. Install and launch on Windows 11, enable MCP, choose a workspace, and connect a local desktop client using the provided setup.
+1. Install and launch on Windows 11. Use **Connect to Codex** and **Connect to Claude Code** inside the app and follow each in-app guide; verify `get_status` from both clients without finding an executable, reading token files, setting environment variables, or manually editing configuration. Restart the app/clients and confirm the setup persists. Choose a workspace for file operations.
 2. Through MCP, create a 32×32 document, add two layers, draw an outlined sprite, flood-fill it, and request a preview.
 3. Verify that the preview matches the editor and that a manual edit is visible in the next MCP read.
 4. Undo a manual edit and an MCP batch from the UI, then redo them through MCP.
@@ -270,7 +319,7 @@ Initial responsiveness target: on a recorded Windows 11 test machine, ordinary 3
 - The first release is Windows 11 x64 and local-only; ARM64 and remote connectivity are deferred.
 - The initial delivery includes static and animated Bevy assets. Basic frame animation, clips, and sprite-sheet export are required; advanced animation tooling remains deferred.
 - The app must be open for MCP use; headless operation is deferred.
-- At least one actual desktop client must be tested before claiming compatibility. Codex and Claude Desktop are intended examples, not yet verified integrations.
+- Test actual Codex and Claude Code clients before claiming either integration is supported. Record the tested versions, Windows setup, authentication/configuration mechanism, and restart behavior. Neither integration is verified yet; generic Claude Desktop examples do not establish Claude Code compatibility.
 - Electron footprint and unsigned development installers are acceptable for the first implementation; signing is revisited before wider distribution.
 
 Implementation should proceed milestone by milestone, starting with the packaged MCP connection proof so the central integration is validated early.

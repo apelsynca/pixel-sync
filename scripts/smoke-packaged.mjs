@@ -22,7 +22,8 @@ const token = randomBytes(32).toString('hex');
 await writeFile(join(directory, 'mcp-connection.json'), JSON.stringify({ port, token, enabled: true }));
 const env = { ...process.env, PIXEL_EDITOR_DATA_DIR: directory };
 delete env.ELECTRON_RUN_AS_NODE;
-const application = spawn(executable, [], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+const headless = process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY;
+const application = spawn(executable, headless ? ['--ozone-platform=headless', '--no-sandbox', '--disable-gpu'] : [], { env, stdio: ['ignore', 'pipe', 'pipe'] });
 let diagnostics = '';
 application.stderr.on('data', chunk => { diagnostics += chunk; });
 const direct = new Client({ name: 'packaged-http-smoke', version: '1.0.0' });
@@ -39,12 +40,31 @@ try {
     await new Promise(resolve => setTimeout(resolve, 200));
   }
   await direct.connect(new StreamableHTTPClientTransport(endpoint, { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
-  await bridge.connect(new StdioClientTransport({ command: executable, args: ['--mcp-stdio'], env, stderr: 'pipe' }));
+  const transport = new StdioClientTransport({ command: executable, args: [...(headless ? ['--ozone-platform=headless', '--no-sandbox', '--disable-gpu'] : []), '--mcp-stdio'], env, stderr: 'pipe' });
+  let bridgeDiagnostics = '';
+  transport.stderr?.on('data', chunk => { bridgeDiagnostics += chunk; });
+  try { await bridge.connect(transport); }
+  catch (cause) { throw new Error(`Packaged stdio bridge failed: ${bridgeDiagnostics}`, { cause }); }
   const status = await direct.callTool({ name: 'get_status', arguments: {} });
   assert.deepEqual(await bridge.callTool({ name: 'get_status', arguments: {} }), status);
   assert.equal(status.structuredContent.mcp.enabled, true);
-  assert.equal(status.structuredContent.document, null);
-  console.log('Packaged HTTP and stdio reach the same live Electron instance.');
+  assert.equal(status.structuredContent.document.width, 32);
+  assert.equal(status.structuredContent.document.frames.length, 1);
+  assert.ok((await bridge.listTools()).tools.some(tool => tool.name === 'edit_document'));
+  const document = (await bridge.callTool({ name: 'get_document', arguments: {} })).structuredContent;
+  const edit = await bridge.callTool({ name: 'edit_document', arguments: { documentId: document.documentId, expectedRevision: document.revision, operations: [
+    { type: 'set_pixels', frameId: document.frames[0].id, layerId: document.layers[0].id, pixels: [{ x: 1, y: 1, color: '#FF0000FF' }] },
+  ] } });
+  assert.equal(edit.isError, undefined);
+  const read = await direct.callTool({ name: 'get_pixels', arguments: { documentId: document.documentId, frameId: document.frames[0].id, x: 1, y: 1, width: 1, height: 1 } });
+  assert.deepEqual([...Buffer.from(read.structuredContent.data, 'base64')], [255, 0, 0, 255]);
+  const previewArgs = { documentId: document.documentId, frameId: document.frames[0].id };
+  assert.deepEqual(await bridge.callTool({ name: 'get_preview', arguments: previewArgs }), await direct.callTool({ name: 'get_preview', arguments: previewArgs }));
+  const undo = await direct.callTool({ name: 'undo', arguments: { documentId: document.documentId, expectedRevision: 1 } });
+  assert.equal(undo.structuredContent.document.revision, 2);
+  const redo = await bridge.callTool({ name: 'redo', arguments: { documentId: document.documentId, expectedRevision: 2 } });
+  assert.equal(redo.structuredContent.document.revision, 3);
+  console.log('Packaged HTTP and executable stdio share document edits, PNG previews, and undo/redo in one live app.');
 } finally {
   await Promise.allSettled([bridge.close(), direct.close()]);
   if (application.exitCode === null) {

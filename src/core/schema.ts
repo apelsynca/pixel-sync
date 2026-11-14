@@ -35,7 +35,7 @@ export const newDocumentSchema = z.strictObject({ width: z.number().int().min(1)
 export const pixelReadSchema = z.strictObject({ frameId: id, layerId: id.optional(), x: z.number().int().nonnegative(), y: z.number().int().nonnegative(), width: z.number().int().positive(), height: z.number().int().positive() });
 export type PixelRead = z.infer<typeof pixelReadSchema>;
 
-export type ErrorCode = 'invalid_arguments' | 'stale_revision' | 'missing_document' | 'missing_layer' | 'missing_frame' | 'size_limit' | 'unsaved_document' | 'empty_history';
+export type ErrorCode = 'invalid_arguments' | 'stale_revision' | 'missing_document' | 'missing_layer' | 'missing_frame' | 'size_limit' | 'unsaved_document' | 'empty_history' | 'cancelled';
 export class DocumentError extends Error {
   constructor(public readonly code: ErrorCode, message: string) { super(message); this.name = 'DocumentError'; }
 }

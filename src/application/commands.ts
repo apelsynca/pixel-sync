@@ -1,5 +1,10 @@
 import { DocumentEngine, type Change, type DocumentInfo } from '../core/document';
 import { DocumentError, type Operation } from '../core/schema';
+import { z } from 'zod';
+import { guardSchema, parse } from '../core/schema';
+import { composite } from '../core/drawing';
+import type { FramePixels } from '../shared/api';
+import { animationPreviewSchema, inspectDocument, inspectPixelsSchema, previewSchema, renderPreview } from './inspection';
 
 export type DocumentEvent = { document: DocumentInfo; change?: Change };
 export interface Gesture {
@@ -15,8 +20,8 @@ export class CommandService {
   subscribe(listener: (event: DocumentEvent) => void): () => void {
     this.listeners.add(listener); return () => { this.listeners.delete(listener); };
   }
-  private enqueue<T>(action: () => T | Promise<T>): Promise<T> {
-    const result = this.queue.then(action);
+  private enqueue<T>(action: () => T | Promise<T>, signal?: AbortSignal): Promise<T> {
+    const result = this.queue.then(() => { if (signal?.aborted) throw new DocumentError('cancelled', 'Command cancelled before execution'); return action(); });
     this.queue = result.then(() => undefined, () => undefined);
     return result;
   }
@@ -26,9 +31,46 @@ export class CommandService {
       try { listener(structuredClone(event)); } catch { /* subscriber owns its errors */ }
     }
   }
-  getDocument() { return this.enqueue(() => this.engine.getDocument()); }
+  getDocument(signal?: AbortSignal) { return this.enqueue(() => this.engine.getDocument(), signal); }
+  inspectPixels(input: unknown, signal?: AbortSignal) {
+    const request = structuredClone(input);
+    return this.enqueue(() => {
+      const args = parse(inspectPixelsSchema, request), document = inspectDocument(this.engine, args);
+      const { frameId, layerId, x, y, width, height } = args;
+      return { documentId: document.documentId, revision: document.revision, frameId, layerId: layerId ?? null, x, y, width, height,
+        pixels: this.engine.getPixels({ frameId, layerId, x, y, width, height }) };
+    }, signal);
+  }
+  getPreview(input: unknown, signal?: AbortSignal) {
+    const request = structuredClone(input);
+    return this.enqueue(() => { const args = parse(previewSchema, request); return renderPreview(this.engine, { ...args, frameIds: [args.frameId], columns: 1 }); }, signal);
+  }
+  getAnimationPreview(input: unknown, signal?: AbortSignal) {
+    const request = structuredClone(input);
+    return this.enqueue(() => renderPreview(this.engine, parse(animationPreviewSchema, request)), signal);
+  }
   getPixels(input: Parameters<DocumentEngine['getPixels']>[0]) {
     const request = structuredClone(input); return this.enqueue(() => this.engine.getPixels(request));
+  }
+  getFrame(input: unknown): Promise<FramePixels> {
+    const request = structuredClone(input);
+    return this.enqueue(() => {
+      const args = parse(guardSchema.extend({ frameId: z.string().min(1).max(128), allLayers: z.boolean().default(false) }), request);
+      this.engine.assertRevision({ documentId: args.documentId, expectedRevision: args.expectedRevision });
+      const document = this.engine.getDocument()!;
+      if (!document.frames.some(frame => frame.id === args.frameId)) throw new DocumentError('missing_frame', 'Frame no longer exists');
+      const layers = document.layers.map(layer => {
+        const pixels = new Uint8Array(document.width * document.height * 4);
+        const bandHeight = Math.floor(65_536 / document.width);
+        for (let y = 0; y < document.height; y += bandHeight) {
+          const height = Math.min(bandHeight, document.height - y);
+          pixels.set(this.engine.getPixels({ frameId: args.frameId, layerId: layer.id, x: 0, y, width: document.width, height }), y * document.width * 4);
+        }
+        return { id: layer.id, visible: layer.visible, pixels };
+      });
+      return { documentId: document.documentId, revision: document.revision, frameId: args.frameId, width: document.width, height: document.height,
+        layers: args.allLayers ? layers : [{ id: 'composite', visible: true, pixels: composite(document.width, document.height, layers.filter(layer => layer.visible).map(layer => layer.pixels)) }] };
+    });
   }
   /** Reserve the queue on pointer-down; commit one atomic batch on pointer-up.
    * The owning view must cancel on pointer cancellation or window teardown. */
@@ -58,16 +100,16 @@ export class CommandService {
     }).catch(reject);
     return result;
   }
-  newDocument(input: unknown) {
+  newDocument(input: unknown, signal?: AbortSignal) {
     const request = structuredClone(input);
-    return this.enqueue(() => { const document = this.engine.newDocument(request); this.notify({ document }); return document; });
+    return this.enqueue(() => { const document = this.engine.newDocument(request); this.notify({ document }); return document; }, signal);
   }
-  edit(input: unknown) { return this.mutate('edit', input); }
-  undo(input: unknown) { return this.mutate('undo', input); }
-  redo(input: unknown) { return this.mutate('redo', input); }
-  private mutate(method: 'edit' | 'undo' | 'redo', input: unknown) {
+  edit(input: unknown, signal?: AbortSignal) { return this.mutate('edit', input, signal); }
+  undo(input: unknown, signal?: AbortSignal) { return this.mutate('undo', input, signal); }
+  redo(input: unknown, signal?: AbortSignal) { return this.mutate('redo', input, signal); }
+  private mutate(method: 'edit' | 'undo' | 'redo', input: unknown, signal?: AbortSignal) {
     const request = structuredClone(input);
-    return this.enqueue(() => { const change = this.engine[method](request); if (change.summary !== 'No changes') this.notify({ document: change.document, change }); return change; });
+    return this.enqueue(() => { const change = this.engine[method](request); if (change.summary !== 'No changes') this.notify({ document: change.document, change }); return change; }, signal);
   }
   markSaved(input: unknown) {
     const request = structuredClone(input);

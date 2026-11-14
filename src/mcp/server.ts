@@ -1,11 +1,13 @@
 import { createServer, type Server } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Server as McpServer } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { EditorStatus } from '../shared/api';
+import type { ClientId } from '../shared/api';
+import { createToolServer, type ToolOptions } from './tools';
 
 export interface RunningMcp { port: number; close(): Promise<void> }
-export async function startMcp(options: { port: number; token: string; getStatus: () => EditorStatus }): Promise<RunningMcp> {
+export async function startMcp(options: { port: number; token: string; getStatus: () => EditorStatus; onStatusCall?: (client: ClientId) => void } & Pick<ToolOptions, 'commands' | 'onOperation'>): Promise<RunningMcp> {
   const active = new Set<McpServer>();
   const server: Server = createServer(async (request, response) => {
     const deny = (status: number, message: string) => { response.writeHead(status, { 'Content-Type': 'text/plain' }); response.end(message); };
@@ -17,7 +19,8 @@ export async function startMcp(options: { port: number; token: string; getStatus
     const received = Buffer.from(request.headers.authorization ?? '');
     const expected = Buffer.from(`Bearer ${options.token}`);
     if (received.length !== expected.length || !timingSafeEqual(received, expected)) return deny(401, 'Bearer token required');
-    if (request.url !== '/mcp') return deny(404, 'Not found');
+    const client = request.url === '/mcp/codex' ? 'codex' : request.url === '/mcp/claude-code' ? 'claude-code' : undefined;
+    if (request.url !== '/mcp' && !client) return deny(404, 'Not found');
     if (request.method !== 'POST') return deny(405, 'Use MCP POST requests');
     const chunks: Buffer[] = [];
     let length = 0;
@@ -30,11 +33,7 @@ export async function startMcp(options: { port: number; token: string; getStatus
       let body: unknown;
       try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
       catch { return deny(400, 'Invalid JSON'); }
-      const mcp = new McpServer({ name: 'pixel-editor', version: '0.1.0' });
-      mcp.registerTool('get_status', { description: 'Inspect the running Pixel Editor connection. No document exists during the foundation milestone.', inputSchema: {}, annotations: { readOnlyHint: true } }, async () => {
-        const status = options.getStatus();
-        return { content: [{ type: 'text', text: JSON.stringify(status) }], structuredContent: { ...status } };
-      });
+      const mcp = createToolServer({ ...options, client });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       active.add(mcp);
       response.on('close', () => { active.delete(mcp); void mcp.close(); });

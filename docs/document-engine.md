@@ -1,6 +1,6 @@
 # Shared document engine
 
-Milestone 2 provides `src/core/document.ts` and `src/application/commands.ts`. The engine owns the authoritative buffers; the command service is the shared serialization boundary for the manual editor and MCP adapters. These adapters are implemented in later milestones. Current GUI and MCP behavior is unchanged.
+Milestone 2 provides `src/core/document.ts` and `src/application/commands.ts`. The engine owns the authoritative buffers; the command service is the shared serialization boundary for the manual editor and MCP adapters. Milestone 3 connects the manual editor through validated preload IPC. Milestone 4 connects the same service to MCP drawing/history tools and revisioned pixel/PNG/contact-sheet reads. See [the MCP tool contract](mcp-tools.md).
 
 ## Command contract
 
@@ -14,7 +14,9 @@ Each successful change advances the revision once and returns current document m
 
 Replacement requires `newDocument({ current: { documentId, expectedRevision }, ... })` when a document is already open. Unsaved replacement also requires `discardUnsaved: true`. Each replacement receives a new document ID and resets revision and history.
 
-All command service reads and mutations share one queue. Inputs are copied when submitted so callers cannot alter pending commands. Engine errors use `DocumentError.code`: `invalid_arguments`, `stale_revision`, `missing_document`, `missing_layer`, `missing_frame`, `size_limit`, `unsaved_document`, or `empty_history`. Rejected commands leave committed state and history unchanged and do not poison subsequent queue work.
+All command service reads and mutations share one queue. MCP read/preview actions inspect one immutable document revision, and optional cancellation signals are checked immediately before queued work starts. Closing the transport aborts its pending actions; committed atomic edits require Undo. Inputs are copied when submitted so callers cannot alter pending commands. Engine errors use `DocumentError.code`: `invalid_arguments`, `stale_revision`, `missing_document`, `missing_layer`, `missing_frame`, `size_limit`, `unsaved_document`, or `empty_history`. Cancelled queued commands use `cancelled`. Rejected commands leave committed state and history unchanged and do not poison subsequent queue work.
+
+`getFrame({ documentId, expectedRevision, frameId, allLayers? })` is the manual editor's snapshot adapter. It reads cels in bounded bands within one queue action, returning either defensive layer buffers for gesture presentation or the flattened visible frame. It requires the exact revision and is bounded by the canvas/layer limits. This internal snapshot adapter does not increase the MCP pixel-read limit. The view rebuilds from current revision snapshots after notifications, including when revisions were skipped.
 
 ## Gestures
 
@@ -31,7 +33,7 @@ Call `cancel()` on pointer cancellation or view/window teardown. Cancellation an
 - Layer additions create transparent cels in every frame; deletion removes them everywhere. New frames are transparent. Duplicate frames deep-copy every cel and retain duration. Clearing or painting always targets an explicit layer and frame.
 - Durations are integer milliseconds from 10 to 60,000. Retain at least one layer and frame. Shared layer names/order/visibility apply to all frames. Clip names are unique, trimmed, nonempty strings; setting an existing name replaces its definition. A clip has an ordered, nonempty list of distinct frame IDs and a loop flag. Clip references are checked against the final staged state so frame deletion and clip repair can occur in either order in one batch. Timeline reordering preserves clip references; duplication does not extend clips.
 
-Playback, selection, onion skin, and rendering overlays belong to the view in milestone 3 and do not form document mutations.
+Playback, selection, onion skin, and rendering overlays belong to the milestone 3 view and do not form document mutations. Gesture previews copy the active layer's snapshot and share the engine's drawing/compositing routines; only a committed command changes authoritative pixels.
 
 ## Memory and request limits
 
